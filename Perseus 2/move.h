@@ -21,10 +21,13 @@ typedef int moveInt;
     (enpassant << 22) | \
     (castling << 23)    \
 
+
+#define okToReduce(move) (isCapture(move)==0 || getPromotion(move)==0 )
 #define getMoveSource(move)		( move & 0x3f    )
 #define getMoveTarget(move)		((move & 0xfc0   ) >>  6 )
 #define getMovePiece(move)		((move & 0xf000  ) >> 12 )
 #define getPromotion(move)		((move & 0xf0000 ) >> 16 )
+#define onlyMove(move)          (move & 0x00ffffff)
 
 
 #define getCaptureFlag(move)    ((move & 0x100000))
@@ -38,7 +41,7 @@ typedef int moveInt;
 
 struct moves {
 	//moves
-	int moves[256];
+    int m[256] = { 0 };
 	
 	//move count
 	int count = 0;
@@ -50,6 +53,7 @@ std::string getMoveString(moveInt move);
 void printMove(moveInt move);
 void printMoveList(moves* moveList);
 void addMove(moves* moveList, moveInt move, int bonus = 0);
+
 static inline void orderedInsert(moves *moveList, moveInt move);
 const int castlingRights[64] = {
      7, 15, 15, 15,  3, 15, 15, 11,
@@ -61,3 +65,4 @@ const int castlingRights[64] = {
     15, 15, 15, 15, 15, 15, 15, 15,
     13, 15, 15, 15, 12, 15, 15, 14
 };
+

@@ -4,12 +4,20 @@
 #include <algorithm>
 
 #include <stack>
+#define maxPly 64
 
+#define fullDepthMoves 4
+#define reductionLimit 3
 extern char asciiPieces[13];
 int charPieces(char piece);
 int getTimeMs();
 
-
+extern moveInt killerMoves[2][64];
+extern int ply;
+//PV len
+extern int pvLen[maxPly];
+//pvTable
+extern int pvTable[maxPly][64];
 
 struct Position {
 	//piece bbs
@@ -21,7 +29,7 @@ struct Position {
 	// enPassantSquare
 	int enPassant = no_square;
 	// castling
-	int castle = 0; 
+	int castle = 0;
 	void print();
 	void parseFen(const char* fen);
 	void wipe(); //widePopulation() sembrava troppo brutto
@@ -29,12 +37,11 @@ struct Position {
 	inline int isSquareAttacked(unsigned int square, int sideToMove);
 	inline void operator=(const Position& other);
 	void printAttackedSquares(int sideToMove);
-	void generateMoves(moves* moveList);
+	inline void generateMoves(moves* moveList);
 	int whiteCaptureValueAt(int square);
 	int blackCaptureValueAt(int square);
 	
 };
-
 
 void printPosition(Position p);
 
@@ -44,8 +51,8 @@ class Game {
 public:
 	Position pos;
 	unsigned int nodes = 0;
-	int ply=0;
-	int bestMove = 0;
+	
+	
 	Game(Position p);
 	Game(const char* fen);
 	Game();
@@ -59,11 +66,11 @@ public:
 	bool isLegal(const char* moveString);
 	moveInt getLegal(const char* moveString);
 	inline int eval();
-	int makeMove(moveInt move, int flags);
+	inline int makeMove(moveInt move, int flags);
 	inline int negaMax(int alpha, int beta, int depth);
 	U64 miniMax(int alpha, int beta, int depth);
 	int negaScout(int alpha, int beta, int depth);
-	int quiescence(int alpha,int beta);
+	inline int quiescence(int alpha,int beta);
 	
 };
 

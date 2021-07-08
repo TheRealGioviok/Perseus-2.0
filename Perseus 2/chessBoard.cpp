@@ -3,6 +3,12 @@
 #include "evaluation.h"
 #include <windows.h>
 
+moveInt killerMoves[2][maxPly];
+int ply=0;
+//PV len
+int pvLen[maxPly] = { 0 };
+//pvTable
+int pvTable[maxPly][64] = { {0} };
 
 int getTimeMs() {
 	return GetTickCount();
@@ -32,53 +38,180 @@ inline unsigned long long perftDriver(int depth, Game *game) {
 inline int Game::eval() {
 	return evaluate(pos);
 }
-
+#define VALWINDOW 50
 void Game::searchPosition(int depth) {
-	bestMove = 0;
-	int score = negaMax(-50000, 50000, depth);
-	if(bestMove)std::cout << "bmove now : " << bestMove << " -> " << getMoveString(bestMove) << "\n";
+
+	int score = 0;
+	int alpha = -50000;
+	int beta = 50000;
+	
+	memset(killerMoves, 0, sizeof(killerMoves));
+	memset(pvTable, 0, sizeof(pvTable));
+	memset(pvLen, 0, sizeof(pvLen));
+
+	for (int c = 1; c <= depth; c++) {
+		nodes = 0;
+		//enable followPv
+		score = negaMax(alpha, beta, c);
+		if (score <= alpha || score >= beta) {
+			score = negaMax(-50000, 50000, c);
+		}
+		std::cout << "info score cp " << score << " depth " << c << " nodes " << nodes << " pv ";
+		alpha = score - VALWINDOW;
+		beta = score + VALWINDOW;
+		for (int i = 0; i < pvLen[0]; i++) {
+			std::cout << getMoveString(pvTable[0][i]) << " ";
+		}
+		std::cout << "\n";
+	}
+	std::cout << "bestmove " << getMoveString(pvTable[0][0]) << "\n";
+
+	
+	//std::cout << "bmove now : " << bestMove << " -> " << getMoveString(bestMove) << "\n";
+
 }
 
-inline int Game::negaMax(int alpha, int beta, int depth) {
-	if (depth == 0)return eval();
-
+inline int Game::quiescence(int alpha, int beta) {
 	nodes++;
 
-	moves moveList[1];
+	//legal counter
+	int eeval = eval();
+	
+	//fail hard beta
+	if (eeval >= beta)return beta;
+	if (eeval > alpha)alpha = eeval;
+	moves* moveList = new moves;
 	generateMoves(moveList);
-	moveInt bestSoFar = 0;
-	int oldAlpha = alpha;
 	Position save = pos;
 	//OTTIMIZZAZIONE : PREV POS IS THE SAME THROUGHT THE WHOLE FOR CYCLE, MAYBE NOT SAVING IN MAKEMOVE?
 	for (int i = 0; i < moveList->count; i++) {
-		pos = save;
 		ply++;
-		if (makeMove(moveList->moves[i], allMoves) == 0) {
+		if (makeMove(moveList->m[i], onlyCaptures) == 0) {
 			ply--;
 			pos = save;
 			continue;
 		}
-		int score = -negaMax(-beta, -alpha, depth - 1);
+		int score = -quiescence(-beta, -alpha);
 		pos = save;
 		ply--;
 
 		if (score >= beta) {
 			//fail high
+			delete moveList;
 			return beta;
 		}
 
 		if (score > alpha) {
 			// new node
-			alpha = score;
-			if (ply == 0) {
-				bestSoFar = moveList->moves[i];
-			}
+			alpha = eeval;
 		}
 	}
-	if (oldAlpha != alpha) {
-		bestMove = bestSoFar;
-	}
+	delete moveList;
+	return alpha;
+}
 
+
+inline int Game::negaMax(int alpha, int beta, int depth) {
+	pvLen[ply] = ply;
+	if (depth == 0)return quiescence(alpha,beta);
+
+	//remove for spEEd
+	//if (ply > maxPly - 1) {
+	//	return evaluate(pos);
+	//}
+	
+	nodes++;
+	unsigned long kingPos;
+	bitScanForward(&kingPos, (pos.side ? pos.bitboards[k] : pos.bitboards[K]));
+	int inCheck = pos.isSquareAttacked(kingPos, pos.side ^ 1);
+	if (inCheck) depth++;
+	//legal counter
+	int legalCounter = 0;
+	// number of moves searched in a move list
+	int moveSearched = 0;
+	Position save;
+	
+	//Null MP
+	if (depth >= 3 && inCheck == 0 && ply) {
+		save = pos;
+		pos.side ^= 1;
+		pos.enPassant = no_square;
+		int sscore = -negaMax( -beta, -beta + 1, depth - 1 - 2);
+		pos = save;
+		if (sscore >= beta)return beta;
+	}
+	
+
+	moves* moveList= new moves;
+	
+	generateMoves(moveList);
+	save = pos;
+	
+	//OTTIMIZZAZIONE : PREV POS IS THE SAME THROUGHT THE WHOLE FOR CYCLE, MAYBE NOT SAVING IN MAKEMOVE?
+	for (int i = 0; i < moveList->count; i++) {
+		ply++;
+		if (makeMove(moveList->m[i], allMoves) == 0) {
+			ply--;
+			pos = save;
+			continue;
+		}
+		legalCounter++;
+		int score;
+		
+		if (moveSearched == 0) score = -negaMax(-beta, -alpha, depth - 1);
+		else {
+			if (moveSearched >= fullDepthMoves && depth >= reductionLimit && okToReduce(moveList->m[i]) && !inCheck) {
+				score = -negaMax(-alpha - 1, -alpha, depth - 2);
+			}
+			else score = alpha + 1;
+
+			if (score > alpha) {
+				score = -negaMax(-alpha - 1, -alpha, depth - 1);
+				if ((score > alpha) && (score < beta)) score = -negaMax(-beta, -alpha, depth - 1);
+			}
+
+		}
+		//score = -negaMax(-beta, -alpha, depth - 1);
+		
+		pos = save;
+		moveSearched++;
+		ply--;
+
+
+		if (score >= beta) {
+			//fail high
+			if (isCapture(moveList->m[i]) == 0) {
+				killerMoves[1][ply] = killerMoves[0][ply];
+				killerMoves[0][ply] = onlyMove(moveList->m[i]);
+			}
+			delete moveList;
+			return beta;
+		}
+		if (score > alpha) {
+			// new node
+			alpha = score;
+			//write to pvtable
+			pvTable[ply][ply] = onlyMove(moveList->m[i]);
+			//copy move from deeper ply
+			for (int j = ply + 1; j < pvLen[ply + 1]; j++) {
+				pvTable[ply][j] = pvTable[ply + 1][j];
+			}
+
+			//adjust PVLen
+			pvLen[ply] = pvLen[ply + 1];
+		}
+	}
+	if (legalCounter == 0) {
+		if (inCheck) {
+			delete moveList;
+			return -49000 + ply;
+		}
+		else {
+			delete moveList;
+			return 0;
+		}
+	}
+	delete moveList;
 	return alpha; //fails low
 }
 
@@ -91,7 +224,7 @@ U64 _perftDriver(int depth,Game *game)
 
 	game->generateMoves(move_list);
 	for (i = 0; i < move_list->count; i++) {
-		if (game->makeMove(move_list->moves[i], allMoves)) {
+		if (game->makeMove(move_list->m[i], allMoves)) {
 			if (depth == 1) nodes++;
 			else nodes += _perftDriver(depth - 1, game);
 			game->prevState();
@@ -288,7 +421,7 @@ void Position::printAttackedSquares(int sideToMove) {
 //RIMEMBRA OTTIMIZZAZIONE OCCUPANCIES BOTH?
 inline int Position::isSquareAttacked(unsigned int square, int attackerSide) {
 	//attacked by whitePawns
-	
+		
 		if ((attackerSide == white) && (pawnAttacks[black][square] & bitboards[P]))return 1;
 
 		//attacked by blackPawns
@@ -308,8 +441,6 @@ inline int Position::isSquareAttacked(unsigned int square, int attackerSide) {
 
 		//attacked by kings
 		if (kingAttacks[square] & ((attackerSide == white) ? bitboards[K] : bitboards[k])) return 1;
-
-	
 
 	return 0;
 }
@@ -340,7 +471,9 @@ int Position::blackCaptureValueAt(int square) {
 	return 90;
 }
 
-void Position::generateMoves(moves* moveList) {
+
+
+inline void Position::generateMoves(moves* moveList) {
 	//reset the moveList
 	moveList->count = 0;
 	//WHITE
@@ -364,6 +497,7 @@ void Position::generateMoves(moves* moveList) {
 						}
 						//normal pushes
 						else {
+							
 							addMove(moveList, encodeMove(sourceSquare, targetSquare, P, 0, 0, 0, 0, 0),0);
 							//double pushes
 							if (sourceSquare >= a2 && !testBit(occupancies[both], targetSquare - 8)) {
@@ -768,7 +902,7 @@ void Position::generateMoves(moves* moveList) {
 			}
 		}
 	}
-	std::sort(std::begin(moveList->moves),std::end(moveList->moves),std::greater<int>());
+	std::sort(std::begin(moveList->m),std::end(moveList->m),std::greater<int>());
 }
 void Game::generateMoves(moves* moveList) {
 	pos.generateMoves(moveList);
@@ -778,7 +912,7 @@ void Game::generateLegalMoves(moves* moveList) {
 }
 
 
-int Game::makeMove(moveInt move, int flags) {
+inline int Game::makeMove(moveInt move, int flags) {
 	//std::cout << "call\n";
 	//allMove makeMove
 	if (!move) return 0;
@@ -943,15 +1077,12 @@ int Game::makeMove(moveInt move, int flags) {
 			return makeMove(move, allMoves);
 		else return 0;
 	}
-
-	
 }
 
 
 Game::Game() {
 	nodes = 0;
 	ply = 0;
-	bestMove = 0;
 	Position ps;
 	ps.parseFen(startPosition);
 	pos = ps;
@@ -961,7 +1092,6 @@ Game::Game() {
 Game::Game(Position ps) {
 	nodes = 0;
 	ply = 0;
-	bestMove = 0;
 	pos = ps;
 	positionStack.emplace(ps);
 }
@@ -969,7 +1099,6 @@ Game::Game(Position ps) {
 Game::Game(const char* fen) {
 	nodes = 0;
 	ply = 0;
-	bestMove = 0;
 	//std::cout << "oarsing" << "\n";
 	pos.parseFen(fen);
 	positionStack.emplace(pos);
@@ -998,7 +1127,7 @@ bool Game::isLegal(const char* moveString) {
 	//generate moves
 	generateMoves(moveList);
 	for (int i = 0; i < moveList->count; i++) {
-		if (!strcmp(getMoveString(moveList->moves[i]).c_str(), moveString))return true;
+		if (!strcmp(getMoveString(moveList->m[i]).c_str(), moveString))return true;
 	}
 	return false;
 }
@@ -1009,7 +1138,7 @@ moveInt Game::getLegal(const char* moveString) {
 	//generate moves
 	generateMoves(moveList);
 	for (int i = 0; i < moveList->count; i++) {
-		if (!strcmp(getMoveString(moveList->moves[i]).c_str(), moveString))return moveList->moves[i];
+		if (!strcmp(getMoveString(moveList->m[i]).c_str(), moveString))return moveList->m[i];
 	}
 	return false;
 }

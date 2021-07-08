@@ -1,5 +1,6 @@
 #pragma once
 #include "move.h"
+#include "chessBoard.h"
 #include <iostream>
 #include <cassert>
 #include "BBmacros.h"
@@ -31,27 +32,34 @@ std::string getMoveString(moveInt move) {
 
 void printMoveList(moves* moveList) {
 	for (int i = 0; i < moveList->count; i++) {
-		printMove(moveList->moves[i]);
+		printMove(moveList->m[i]);
 	}
 }
 
 void addMove(moves* moveList, moveInt move, int bonus ) {
-	unsigned int score = 0;
-	
-	score += bonus; //includes MVV - LVA
+	moveInt oMove = onlyMove(move);
+	for (int i = 0; i < ply; i++) {
+		if (pvTable[0][ply] == oMove) {
+			move += ((255-i) << 24);
+			moveList->m[moveList->count] = move;
+			moveList->count++;
+			return;
+		}
+	}
 
-	score += (int)((3.5f - abs(3.5f - (float)(getMoveSource(move) & 0x7))));
-	score += (int)((3.5f - abs(3.5f - (float)(getMoveSource(move) / 8))) );
+	if (killerMoves[0][ply] == oMove) {
+		bonus += 60;
+	}
+	else if (killerMoves[1][ply] == oMove) {
+		bonus += 59;
+	}
 	
-
-	score /= 4;
-	score += abs((getMoveSource(move) / 8) - (getMoveTarget(move) / 8));
-	
-	//std::cout << getMoveString(move)<<" -> move before the shifted bonus: " << std::hex << move << std::endl;
-	//std::cout << "Move " << getMoveString(move) << " has been assigned a bonus of " << score << ".\n";
-	move = (score << 24) + move;
-	//std::cout << getMoveString(move) << " -> move after the shifted bonus: " << std::hex << move << std::endl;
-	moveList->moves[moveList->count] = move;
+	int s = getMoveSource(move);
+	bonus += (int)((3.5f - abs(3.5f - (float)(s & 0x7))));
+	bonus += (int)((3.5f - abs(3.5f - (float)(s / 8))));
+	bonus /= 4;
+	move = (bonus << 24) + move;
+	moveList->m[moveList->count] = move;
 	moveList->count++;
 }
 

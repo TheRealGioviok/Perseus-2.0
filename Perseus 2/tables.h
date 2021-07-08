@@ -40,6 +40,15 @@
 #define NOTFILE_G 0xbfbfbfbfbfbfbfbf
 #define NOTFILE_H 0x7f7f7f7f7f7f7f7f
 
+const U64 IsolatedA = NOTFILE_B;
+const U64 IsolatedB = NOTFILE_A & NOTFILE_C;
+const U64 IsolatedC = NOTFILE_B & NOTFILE_D;
+const U64 IsolatedD = NOTFILE_C & NOTFILE_E;
+const U64 IsolatedE = NOTFILE_D & NOTFILE_F;
+const U64 IsolatedF = NOTFILE_E & NOTFILE_G;
+const U64 IsolatedG = NOTFILE_F & NOTFILE_H;
+const U64 IsolatedH = NOTFILE_G;
+
 extern U64 pawnAttacks[2][64];
 extern U64 knightAttacks[64];
 extern U64 kingAttacks[64];

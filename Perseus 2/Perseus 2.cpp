@@ -17,14 +17,6 @@ int main()
         game.searchPosition(6);
         int x = 0;
         std::cin >> x;
-        game.searchPosition(6);
-        std::cin >> x;
-        game.searchPosition(6);
-        std::cin >> x;
-        game.searchPosition(6);
-        std::cin >> x;
-        game.searchPosition(6);
-        std::cin >> x;
 
     }
     else {

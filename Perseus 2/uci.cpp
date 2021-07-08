@@ -69,6 +69,7 @@ void parseCommand(std::string command, Game* game) {
 	}
 	//go
 	if (command.find("go") != std::string::npos) {
+		int timer = getTimeMs();
 		command = command.substr(3, command.size() - 3);
 		//std::cout << "Command is now: " << command << "\n";
 		//init depth
@@ -93,7 +94,36 @@ void parseCommand(std::string command, Game* game) {
 			perftDriver(depth, game);
 		}
 		game->searchPosition(depth);
+		int time2 = getTimeMs();
+		//std::cout << "Time elapsed : " << (time2 - timer) << "\n";
+		//std::cout << "Nodes: " << game->nodes << "\n";
+		//std::cout << "Speed: " << (game->nodes / (time2 - timer)) * 1000 << "N/S\n";
 		//game->searchPosDepth(depth);
+	}
+
+	if (command.find("make") != std::string::npos) {
+		command = command.substr(4, command.size() - 4);
+		//std::cout << "Command is now: " << command << "\n";
+		//init depth
+		int depth = 6;
+		//go depth n (fixed search)
+		if (command.find("depth") != std::string::npos) {
+			command = command.substr(6, command.size() - 6);
+			//std::cout << "Command is now: " << command << "\n";
+
+			std::stringstream ss(command);
+			ss >> depth;
+			std::cout << "Starting search at depth " << depth << "\n";
+
+		}
+		int timer = getTimeMs();
+		game->searchPosition(depth);
+		int time2 = getTimeMs();
+		//std::cout << "Time elapsed : " << (time2 - timer) << "\n";
+		//std::cout << "Nodes: " << game->nodes << "\n";
+		//std::cout << "Speed: " << (game->nodes / (time2 - timer)) * 1000 << "N/S\n";
+		game->makeMove(pvTable[0][0],allMoves);
+		//game->print();
 	}
 	
 	
