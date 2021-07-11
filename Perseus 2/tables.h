@@ -49,6 +49,8 @@ const U64 IsolatedF = NOTFILE_E & NOTFILE_G;
 const U64 IsolatedG = NOTFILE_F & NOTFILE_H;
 const U64 IsolatedH = NOTFILE_G;
 
+const U64 files[8] = { FILE_A, FILE_B, FILE_C, FILE_D, FILE_E, FILE_F, FILE_G };
+
 extern U64 pawnAttacks[2][64];
 extern U64 knightAttacks[64];
 extern U64 kingAttacks[64];
