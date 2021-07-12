@@ -3,7 +3,8 @@
 #include "evaluation.h"
 #include <windows.h>
 
-moveInt killerMoves[2][maxPly];
+moveInt killerMoves[2][maxPly] = { {0} };
+moveInt historyMoves[12][64] = { {0} };
 int ply=0;
 //PV len
 int pvLen[maxPly] = { 0 };
@@ -36,7 +37,7 @@ inline unsigned long long perftDriver(int depth, Game *game) {
 }
 
 inline int Game::eval() {
-	return evaluate(pos);
+	return evaluate(&pos);
 }
 #define VALWINDOW 50
 void Game::searchPosition(int depth) {
@@ -44,25 +45,30 @@ void Game::searchPosition(int depth) {
 	int score = 0;
 	int alpha = -50000;
 	int beta = 50000;
+	//stopped = false;
 	
 	memset(killerMoves, 0, sizeof(killerMoves));
 	memset(pvTable, 0, sizeof(pvTable));
 	memset(pvLen, 0, sizeof(pvLen));
+	memset(historyMoves, 0, sizeof(historyMoves));
 
-	for (int c = 1; c <= depth; c++) {
+	for (int c = 2; c <= depth; c+=2) {
+		//if (stopped == true)break;
 		nodes = 0;
 		//enable followPv
 		score = negaMax(alpha, beta, c);
 		if (score <= alpha || score >= beta) {
 			score = negaMax(-50000, 50000, c);
 		}
-		std::cout << "info score cp " << score << " depth " << c << " nodes " << nodes << " pv ";
+		std::cout << "info score cp " << score/2 << " depth " << c << " nodes " << nodes << " pv ";
 		alpha = score - VALWINDOW;
 		beta = score + VALWINDOW;
-		for (int i = 0; i < pvLen[0]; i++) {
+		for (int i = 0; i < pvLen[0]; ++i) {
 			std::cout << getMoveString(pvTable[0][i]) << " ";
 		}
 		std::cout << "\n";
+		if (abs(score) > 49000)break;
+		//if (c + 2 > depth && nodes < 1000000)depth += 2;
 	}
 	std::cout << "bestmove " << getMoveString(pvTable[0][0]) << "\n";
 
@@ -72,7 +78,8 @@ void Game::searchPosition(int depth) {
 }
 
 inline int Game::quiescence(int alpha, int beta) {
-	nodes++;
+	//if ((nodes & 2047) == 0) communicate();
+	++nodes;
 
 	//legal counter
 	int eeval = eval();
@@ -82,36 +89,46 @@ inline int Game::quiescence(int alpha, int beta) {
 	if (eeval > alpha)alpha = eeval;
 	moves* moveList = new moves;
 	generateMoves(moveList);
-	Position save = pos;
+	Position* save = new Position;
+	*save = pos;
 	//OTTIMIZZAZIONE : PREV POS IS THE SAME THROUGHT THE WHOLE FOR CYCLE, MAYBE NOT SAVING IN MAKEMOVE?
-	for (int i = 0; i < moveList->count; i++) {
-		ply++;
+	for (int i = 0; i < moveList->count; ++i) {
+		
+		++ply;
 		if (makeMove(moveList->m[i], onlyCaptures) == 0) {
 			ply--;
-			pos = save;
+			pos = *save;
+			//if (stopped == true)return 0;
 			continue;
 		}
 		int score = -quiescence(-beta, -alpha);
-		pos = save;
+		pos = *save;
+
 		ply--;
+		//if (stopped == true)return 0;
 
 		if (score >= beta) {
 			//fail high
+			//historyMoves[getMovePiece(currMove)][getMoveTarget(currMove)] -= 1;
+			delete save;
 			delete moveList;
 			return beta;
 		}
 
 		if (score > alpha) {
 			// new node
+			//historyMoves[getMovePiece(currMove)][getMoveTarget(currMove)] += 1;
 			alpha = eeval;
 		}
 	}
+	delete save;
 	delete moveList;
 	return alpha;
 }
 
 
 inline int Game::negaMax(int alpha, int beta, int depth) {
+	//if ((nodes & 2047) == 0) communicate();
 	pvLen[ply] = ply;
 	if (depth == 0)return quiescence(alpha,beta);
 
@@ -120,97 +137,119 @@ inline int Game::negaMax(int alpha, int beta, int depth) {
 	//	return evaluate(pos);
 	//}
 	
-	nodes++;
+	++nodes;
 	unsigned long kingPos;
 	bitScanForward(&kingPos, (pos.side ? pos.bitboards[k] : pos.bitboards[K]));
 	int inCheck = pos.isSquareAttacked(kingPos, pos.side ^ 1);
-	if (inCheck) depth++;
+	if (inCheck) ++depth;
 	//legal counter
 	int legalCounter = 0;
 	// number of moves searched in a move list
 	int moveSearched = 0;
-	Position save;
+	Position* save = new Position;
 	
 	//Null MP
 	if (depth >= 3 && inCheck == 0 && ply) {
-		save = pos;
+		*save = pos;
 		pos.side ^= 1;
 		pos.enPassant = no_square;
 		int sscore = -negaMax( -beta, -beta + 1, depth - 1 - 2);
-		pos = save;
-		if (sscore >= beta)return beta;
+		pos = *save;
+		//if (stopped == true)return 0;
+		if (sscore >= beta) {
+			delete save;
+			return beta;
+		}
 	}
 	
 
 	moves* moveList= new moves;
 	
 	generateMoves(moveList);
-	save = pos;
+	*save = pos;
 	
 	//OTTIMIZZAZIONE : PREV POS IS THE SAME THROUGHT THE WHOLE FOR CYCLE, MAYBE NOT SAVING IN MAKEMOVE?
-	for (int i = 0; i < moveList->count; i++) {
-		ply++;
-		if (makeMove(moveList->m[i], allMoves) == 0) {
+	for (int i = 0; i < moveList->count; ++i) {
+		moveInt currMove = moveList->m[i];
+		++ply;
+		if (makeMove(currMove, allMoves) == 0) {
 			ply--;
-			pos = save;
+			pos = *save;
+			//if (stopped == true)return 0;
 			continue;
 		}
-		legalCounter++;
+		++legalCounter;
 		int score;
 		
 		if (moveSearched == 0) score = -negaMax(-beta, -alpha, depth - 1);
 		else {
-			if (moveSearched >= fullDepthMoves && depth >= reductionLimit && okToReduce(moveList->m[i]) && !inCheck) {
+			if (moveSearched >= fullDepthMoves && depth >= reductionLimit && okToReduce(currMove) && !inCheck) {
 				score = -negaMax(-alpha - 1, -alpha, depth - 2);
 			}
 			else score = alpha + 1;
 
 			if (score > alpha) {
 				score = -negaMax(-alpha - 1, -alpha, depth - 1);
+				//if ((score > alpha) && (score < beta)) score = -negaMax(-beta, -alpha, depth - 1);
+
+				//if ((score > alpha) && (score < beta)) score = -negaMax(-alpha, -alpha+50, depth - 1);
+
 				if ((score > alpha) && (score < beta)) score = -negaMax(-beta, -alpha, depth - 1);
 			}
 
 		}
 		//score = -negaMax(-beta, -alpha, depth - 1);
 		
-		pos = save;
-		moveSearched++;
+		pos = *save;
+		//if (stopped == true)return 0;
+		++moveSearched;
 		ply--;
 
 
 		if (score >= beta) {
 			//fail high
-			if (isCapture(moveList->m[i]) == 0) {
+			if (isCapture(currMove) == 0) {
 				killerMoves[1][ply] = killerMoves[0][ply];
-				killerMoves[0][ply] = onlyMove(moveList->m[i]);
+				killerMoves[0][ply] = onlyMove(currMove);
 			}
+			delete save;
 			delete moveList;
 			return beta;
 		}
 		if (score > alpha) {
+			//
+			historyMoves[getMovePiece(currMove)][getMoveTarget(currMove)] += depth;
 			// new node
 			alpha = score;
 			//write to pvtable
-			pvTable[ply][ply] = onlyMove(moveList->m[i]);
+			pvTable[ply][ply] = onlyMove(currMove);
 			//copy move from deeper ply
-			for (int j = ply + 1; j < pvLen[ply + 1]; j++) {
+			for (int j = ply + 1; j < pvLen[ply + 1]; ++j) {
 				pvTable[ply][j] = pvTable[ply + 1][j];
 			}
 
 			//adjust PVLen
 			pvLen[ply] = pvLen[ply + 1];
 		}
+		//else {
+		//	historyMoves[getMovePiece(moveList->m[i])][getMoveTarget(moveList->m[i])] -= 1;
+		//}
+		
 	}
+	
 	if (legalCounter == 0) {
 		if (inCheck) {
+			delete save;
 			delete moveList;
 			return -49000 + ply;
 		}
 		else {
+			delete save;
 			delete moveList;
 			return 0;
 		}
 	}
+	delete save;
 	delete moveList;
 	return alpha; //fails low
 }
@@ -225,7 +264,7 @@ U64 _perftDriver(int depth,Game *game)
 	game->generateMoves(move_list);
 	for (i = 0; i < move_list->count; i++) {
 		if (game->makeMove(move_list->m[i], allMoves)) {
-			if (depth == 1) nodes++;
+			if (depth == 1) ++nodes;
 			else nodes += _perftDriver(depth - 1, game);
 			game->prevState();
 		}
@@ -419,7 +458,7 @@ void Position::printAttackedSquares(int sideToMove) {
 
 
 //RIMEMBRA OTTIMIZZAZIONE OCCUPANCIES BOTH?
-inline int Position::isSquareAttacked(unsigned int square, int attackerSide) {
+inline bool Position::isSquareAttacked(unsigned int square, int attackerSide) {
 	//attacked by whitePawns
 		
 		if ((attackerSide == white) && (pawnAttacks[black][square] & bitboards[P]))return 1;
@@ -445,28 +484,28 @@ inline int Position::isSquareAttacked(unsigned int square, int attackerSide) {
 	return 0;
 }
 inline void Position::operator=(const Position& other) {
-
-	memcpy(bitboards, other.bitboards, 96);
+	memcpy(this, &other, sizeof(Position));
+	/*memcpy(bitboards, other.bitboards, 96);
 	memcpy(occupancies, other.occupancies, 24);
 	side = other.side;
 	enPassant = other.enPassant;
-	castle = other.castle;
+	castle = other.castle;*/
 }
 
-int Position::whiteCaptureValueAt(int square) {
+inline int Position::whiteCaptureValueAt(int square) {
 	U64 sqBB = squareBB(square);
 	if (bitboards[p] & sqBB) return 10;
 	if (bitboards[n] & sqBB) return 30;
-	if (bitboards[b] & sqBB) return 30;
+	if (bitboards[b] & sqBB) return 35;
 	if (bitboards[r] & sqBB) return 50;
 	return 90;
 }
 
-int Position::blackCaptureValueAt(int square) {
+inline int Position::blackCaptureValueAt(int square) {
 	U64 sqBB = squareBB(square);
 	if (bitboards[P] & sqBB) return 10;
 	if (bitboards[N] & sqBB) return 30;
-	if (bitboards[B] & sqBB) return 30;
+	if (bitboards[B] & sqBB) return 35;
 	if (bitboards[R] & sqBB) return 50;
 	return 90;
 }
@@ -478,7 +517,7 @@ inline void Position::generateMoves(moves* moveList) {
 	moveList->count = 0;
 	//WHITE
 	if (side == white) {
-		for (int piece = P; piece <= K; piece++) {
+		for (int piece = P; piece <= K; ++piece) {
 			if (piece == P) {
 				U64 bitboard = bitboards[P];
 				unsigned long sourceSquare, targetSquare;
@@ -692,7 +731,7 @@ inline void Position::generateMoves(moves* moveList) {
 	}
 	//BLACK
 	else {
-		for (int piece = p; piece <= k; piece++) {
+		for (int piece = p; piece <= k; ++piece) {
 			if (piece == p) {
 				U64 bitboard = bitboards[p];
 				unsigned long sourceSquare, targetSquare;
@@ -1126,7 +1165,7 @@ bool Game::isLegal(const char* moveString) {
 	moves moveList[1];
 	//generate moves
 	generateMoves(moveList);
-	for (int i = 0; i < moveList->count; i++) {
+	for (int i = 0; i < moveList->count; ++i) {
 		if (!strcmp(getMoveString(moveList->m[i]).c_str(), moveString))return true;
 	}
 	return false;
@@ -1137,7 +1176,7 @@ moveInt Game::getLegal(const char* moveString) {
 	moves moveList[1];
 	//generate moves
 	generateMoves(moveList);
-	for (int i = 0; i < moveList->count; i++) {
+	for (int i = 0; i < moveList->count; ++i) {
 		if (!strcmp(getMoveString(moveList->m[i]).c_str(), moveString))return moveList->m[i];
 	}
 	return false;

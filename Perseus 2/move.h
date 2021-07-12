@@ -41,7 +41,7 @@ typedef int moveInt;
 
 struct moves {
 	//moves
-    int m[256] = { 0 };
+    int m[128] = { 0 };
 	
 	//move count
 	int count = 0;

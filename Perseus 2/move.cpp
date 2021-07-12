@@ -31,35 +31,42 @@ std::string getMoveString(moveInt move) {
 }
 
 void printMoveList(moves* moveList) {
-	for (int i = 0; i < moveList->count; i++) {
+	for (int i = 0; i < moveList->count; ++i) {
 		printMove(moveList->m[i]);
 	}
 }
 
 void addMove(moves* moveList, moveInt move, int bonus ) {
-	moveInt oMove = onlyMove(move);
-	for (int i = 0; i < ply; i++) {
-		if (pvTable[0][ply] == oMove) {
-			move += ((255-i) << 24);
-			moveList->m[moveList->count] = move;
-			moveList->count++;
-			return;
-		}
-	}
-
-	if (killerMoves[0][ply] == oMove) {
-		bonus += 60;
-	}
-	else if (killerMoves[1][ply] == oMove) {
-		bonus += 59;
-	}
 	
-	int s = getMoveSource(move);
-	bonus += (int)((3.5f - abs(3.5f - (float)(s & 0x7))));
-	bonus += (int)((3.5f - abs(3.5f - (float)(s / 8))));
-	bonus /= 4;
-	move = (bonus << 24) + move;
+	
+	if (pvTable[0][ply] == move) {
+		move |= (0xff000000);
+		moveList->m[moveList->count] = move;
+		++moveList->count;
+		return;
+	}
+	else if (killerMoves[0][ply] == move) {
+		move |= (0xfe000000);
+		moveList->m[moveList->count] = move;
+		++moveList->count;
+		return;
+	}
+	else if (killerMoves[1][ply] == move) {
+		move |= (0xfd000000);
+		moveList->m[moveList->count] = move;
+		++moveList->count;
+		return;
+	}
+	else {
+		#define centerBonus 5
+		bonus += historyMoves[getMovePiece(move)][getMoveTarget(move)];
+		int s = getMoveSource(move);
+		bonus += (int)((3.5f - abs(3.5f - (float)(s & 0x7)))) * centerBonus;
+		bonus += (int)((3.5f - abs(3.5f - (float)(s >> 8)))) * centerBonus;
+		bonus >>= 4;
+	}
+	move |= (bonus << 24);
 	moveList->m[moveList->count] = move;
-	moveList->count++;
+	++moveList->count;
 }
 

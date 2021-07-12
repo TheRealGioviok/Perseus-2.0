@@ -4,6 +4,102 @@
 #include <string>
 #include <sstream>
 #include "chessBoard.h"
+#include <io.h>
+#include <Windows.h>
+
+/*flag quit = 0;
+flag movesToGo = 30;
+flag moveTime = -1;
+flag ucitime = -1;
+flag inc = 0;
+flag startTime = 0;
+flag stopTime = 0;
+flag timeSet = 0;
+flag stopped = 0;
+
+int inputWaiting(){
+	static int init = 0, pipe;
+	static HANDLE inh;
+	DWORD dw;
+
+	if (!init){
+		init = 1;
+		inh = GetStdHandle(STD_INPUT_HANDLE);
+		pipe = !GetConsoleMode(inh, &dw);
+		if (!pipe){
+			SetConsoleMode(inh, dw & ~(ENABLE_MOUSE_INPUT | ENABLE_WINDOW_INPUT));
+			FlushConsoleInputBuffer(inh);
+		}
+	}
+
+	if (pipe){
+		if (!PeekNamedPipe(inh, NULL, 0, NULL, &dw, NULL)) return 1;
+		return dw;
+	}
+
+	else{
+		GetNumberOfConsoleInputEvents(inh, &dw);
+		return dw <= 1 ? 0 : dw;
+	}
+}
+
+// read GUI/user input
+void readInput(){
+	// bytes to read holder
+	int bytes;
+
+	// GUI/user input
+	char input[256] = "", * endc;
+
+	// "listen" to STDIN
+	if (inputWaiting())	{
+		// tell engine to stop calculating
+		stopped = 1;
+
+		// loop to read bytes from STDIN
+		do{
+			// read bytes from STDIN
+			bytes = _read(_fileno(stdin), input, 256);
+		}
+
+		// until bytes available
+		while (bytes < 0);
+
+		// searches for the first occurrence of '\n'
+		endc = strchr(input, '\n');
+
+		// if found new line set value at pointer to 0
+		if (endc) *endc = 0;
+
+		// if input is available
+		if (strlen(input) > 0){
+			// match UCI "quit" command
+			if (!strncmp(input, "quit", 4))
+			{
+				// tell engine to terminate exacution    
+				quit = 1;
+			}
+
+			// // match UCI "stop" command
+			else if (!strncmp(input, "stop", 4)) {
+				// tell engine to terminate exacution
+				quit = 1;
+			}
+		}
+	}
+}
+
+// a bridge function to interact between search and GUI input
+static void communicate() {
+	// if time is up break here
+	if (timeSet == 1 && getTimeMs() > stopTime) {
+		// tell engine to stop calculating
+		stopped = 1;
+	}
+
+	// read GUI input
+	readInput();
+}*/
 
 
 
@@ -16,7 +112,7 @@ moveInt parseNormalMove(char* moveString) {
 
 
 void parseCommand(std::string command, Game* game) {
-	command += " "; //cazo di sicureza
+	if(command.at(command.size()-1) != ' ')command += " "; //cazo di sicureza
 	//std::cout << "Command received: " << command << "\n";
 	// parse UCI "position" command
 
@@ -115,15 +211,28 @@ void parseCommand(std::string command, Game* game) {
 			ss >> depth;
 			std::cout << "Starting search at depth " << depth << "\n";
 
+			int timer = getTimeMs();
+			game->searchPosition(depth);
+			int time2 = getTimeMs();
+			std::cout << "Time elapsed : " << (time2 - timer) << "\n";
+			std::cout << "Nodes: " << game->nodes << "\n";
+			std::cout << "Speed: " << (game->nodes / (time2 - timer)) << "kN/S\n";
+			game->makeMove(pvTable[0][0], allMoves);
+			game->print();
 		}
-		int timer = getTimeMs();
-		game->searchPosition(depth);
-		int time2 = getTimeMs();
-		//std::cout << "Time elapsed : " << (time2 - timer) << "\n";
-		//std::cout << "Nodes: " << game->nodes << "\n";
-		//std::cout << "Speed: " << (game->nodes / (time2 - timer)) * 1000 << "N/S\n";
-		game->makeMove(pvTable[0][0],allMoves);
-		//game->print();
+		else {
+			command = command.substr(1, command.size() - 2);
+			moveInt move = game->getLegal(command.c_str());
+			if (move) {
+				std::cout << "Playing move " << command << "\n";
+				game->makeMove(move,allMoves);
+				game->print();
+			}
+			else {
+				std::cout << "MOve is not legal... Try again\n";
+			}
+		}
+		
 	}
 	
 	

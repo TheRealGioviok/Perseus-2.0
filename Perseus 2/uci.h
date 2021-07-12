@@ -2,6 +2,9 @@
 
 #include "chessBoard.h"
 #include "BBmacros.h"
+//#include <stdlib.h>
+
+typedef int flag;
 /*
 
 
@@ -17,5 +20,18 @@ position:
 moveInt parseNormalMove(char* moveString);
 
 void parseCommand(std::string, Game* game);
-
 void uciLoop();
+/*static void communicate();
+void readInput();
+int inputWaiting();
+
+
+extern flag quit;
+extern flag movesToGo;
+extern flag moveTime;
+extern flag ucitime;
+extern flag inc;
+extern flag startTime;
+extern flag stopTime;
+extern flag timeSet;
+extern flag stopped;*/

@@ -38,9 +38,6 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="uci.h">
-      <Filter>File di intestazione</Filter>
-    </ClInclude>
     <ClInclude Include="tables.h">
       <Filter>File di intestazione</Filter>
     </ClInclude>
@@ -54,6 +51,9 @@
       <Filter>File di intestazione</Filter>
     </ClInclude>
     <ClInclude Include="move.h">
+      <Filter>File di intestazione</Filter>
+    </ClInclude>
+    <ClInclude Include="uci.h">
       <Filter>File di intestazione</Filter>
     </ClInclude>
   </ItemGroup>

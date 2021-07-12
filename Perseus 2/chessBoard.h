@@ -13,6 +13,7 @@ int charPieces(char piece);
 int getTimeMs();
 
 extern moveInt killerMoves[2][64];
+extern moveInt historyMoves[12][64];
 extern int ply;
 //PV len
 extern int pvLen[maxPly];
@@ -24,6 +25,7 @@ struct Position {
 	U64 bitboards[12] = { 0ULL,0ULL,0ULL,0ULL,0ULL,0ULL,0ULL,0ULL,0ULL,0ULL,0ULL,0ULL };
 	//occ bbs
 	U64 occupancies[3] = { 0ULL,0ULL,0ULL };
+	
 	//data
 	int side = -1; //so it needs to be initialized
 	// enPassantSquare
@@ -34,12 +36,12 @@ struct Position {
 	void parseFen(const char* fen);
 	void wipe(); //widePopulation() sembrava troppo brutto
 
-	inline int isSquareAttacked(unsigned int square, int sideToMove);
+	inline bool isSquareAttacked(unsigned int square, int sideToMove);
 	inline void operator=(const Position& other);
 	void printAttackedSquares(int sideToMove);
 	inline void generateMoves(moves* moveList);
-	int whiteCaptureValueAt(int square);
-	int blackCaptureValueAt(int square);
+	inline int whiteCaptureValueAt(int square);
+	inline int blackCaptureValueAt(int square);
 	
 };
 

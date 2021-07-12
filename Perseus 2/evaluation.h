@@ -99,7 +99,7 @@ const int mirrorScore[128] =
 };
 
 extern inline int basicEvaluate(Position pos);
-extern int evaluate(Position pos);
+extern int evaluate(Position* pos);
 
 
 
