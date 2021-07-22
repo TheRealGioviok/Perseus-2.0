@@ -291,6 +291,7 @@ void initAll() {
 	initializePawnAttacks();
 	initSlidersAttacks(1);
 	initSlidersAttacks(0);
+	initHashKeys();
 	//initMagicNumbers();
 }
 
@@ -519,3 +520,95 @@ inline U64 getQueenAttacks(int square, U64 occupancy) {
 	return getRookAttacks(square, occupancy) | getBishopAttacks(square, occupancy);
 }
 
+// random piece keys
+U64 pieceKeys[12][64];
+//random enPassant keys
+U64 enPassantKeys[65];
+//random castling keys
+U64 castleKeys[16];
+//random side key
+U64 sideKeys;
+//hashTable
+//tt hashTable[hashSize];
+
+void initHashKeys() {
+	//seed
+	state = 1804289383;
+	//piece keys
+	for (int i = 0; i < 12; i++) {
+		for (int k = 0; k < 64; k++) {
+			//init the key
+			pieceKeys[i][k] = getRandomNumber64();
+			//printf("0x%llx\n", pieceKeys[i][k]);
+		}
+	}
+	//en passant
+	for (int i = 0; i < 64; i++) {
+		enPassantKeys[i] = getRandomNumber64();
+	}
+	enPassantKeys[64] = 0;
+	//castle
+	for (int i = 0; i < 16; i++) {
+		castleKeys[i] = getRandomNumber64();
+	}
+	//side
+	sideKeys = getRandomNumber64();
+}
+
+static inline void wipeTT() {
+	for (int i = 0; i < hashSize; i++) {
+		//hashTable[i].wipe();
+	}
+}
+
+inline void tt::wipe() {
+	key = 0;
+	depth = 0;
+	flags = 0;
+	score = 0;
+	
+}
+/*
+#define NOENTRY 100000
+inline int readHashEntry(int key, int alpha, int beta, int depth) {
+	//create a TT instance to point to hash entry
+	tt* hashEntry = & hashTable[key % hashSize];
+	// make sure we're dealing with the exact position we need
+	if (hashEntry->key == key)
+	{
+		// make sure that we match the exact depth our search is now at
+		if (hashEntry->depth >= depth)
+		{
+			// match the exact (PV node) score 
+			if (hashEntry->flags == hashEXACT)
+				// return exact (PV node) score
+				return hashEntry->score;
+
+			// match alpha (fail-low node) score
+			if ((hashEntry->flags == hashALPHA) &&
+				(hashEntry->score <= alpha))
+				// return alpha (fail-low node) score
+				return alpha;
+
+			// match beta (fail-high node) score
+			if ((hashEntry->flags == hashBETA) &&
+				(hashEntry->score >= beta))
+				// return beta (fail-high node) score
+				return beta;
+		}
+	}
+	// if hash entry doesn't exist
+	return NOENTRY;
+}
+
+inline void writeHashEntry(int key, int score, int depth, int hashFlag){
+	// create a TT instance pointer to particular hash entry storing
+	// the scoring data for the current board position if available
+	tt* hash_entry = &hashTable[key % hashSize];
+
+	// write hash entry data 
+	hash_entry->key = key;
+	hash_entry->score = score;
+	hash_entry->flags = hashFlag;
+	hash_entry->depth = depth;
+}*/

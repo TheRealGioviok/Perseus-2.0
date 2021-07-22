@@ -38,7 +38,6 @@ void printMoveList(moves* moveList) {
 
 void addMove(moves* moveList, moveInt move, int bonus ) {
 	
-	
 	if (pvTable[0][ply] == move) {
 		move |= (0xff000000);
 		moveList->m[moveList->count] = move;
@@ -46,27 +45,27 @@ void addMove(moves* moveList, moveInt move, int bonus ) {
 		return;
 	}
 	else if (killerMoves[0][ply] == move) {
-		move |= (0xfe000000);
+		move |= (0x64000000);
 		moveList->m[moveList->count] = move;
 		++moveList->count;
 		return;
 	}
 	else if (killerMoves[1][ply] == move) {
-		move |= (0xfd000000);
+		move |= (0x63000000);
 		moveList->m[moveList->count] = move;
 		++moveList->count;
 		return;
 	}
 	else {
-		#define centerBonus 5
+		#define centerBonus 10 //10 > 7 > 2 > 16
 		bonus += historyMoves[getMovePiece(move)][getMoveTarget(move)];
 		int s = getMoveSource(move);
 		bonus += (int)((3.5f - abs(3.5f - (float)(s & 0x7)))) * centerBonus;
 		bonus += (int)((3.5f - abs(3.5f - (float)(s >> 8)))) * centerBonus;
-		bonus >>= 4;
+	    bonus >>= 3;
 	}
+	
 	move |= (bonus << 24);
 	moveList->m[moveList->count] = move;
 	++moveList->count;
 }
-

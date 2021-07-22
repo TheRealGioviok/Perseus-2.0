@@ -1,5 +1,6 @@
 #pragma once
 #include "BBmacros.h"
+#include "move.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <iostream>
@@ -40,6 +41,24 @@
 #define NOTFILE_G 0xbfbfbfbfbfbfbfbf
 #define NOTFILE_H 0x7f7f7f7f7f7f7f7f
 
+//ttable flags
+
+#define hashEXACT 0
+#define hashALPHA 1
+#define hashBETA 2
+#define hashSize 0x4000
+
+
+struct tt {
+	U64 key = 0ULL;
+	short depth = 0;
+	short flags = 0;
+	int score = 0;
+	inline void wipe();
+};
+
+
+
 const U64 IsolatedA = NOTFILE_B;
 const U64 IsolatedB = NOTFILE_A & NOTFILE_C;
 const U64 IsolatedC = NOTFILE_B & NOTFILE_D;
@@ -66,6 +85,16 @@ extern U64 rookMasks[64];
 extern U64 bishopAttacks[64][512];
 //rook attacks table
 extern U64 rookAttacks[64][4096];
+// random piece keys
+extern U64 pieceKeys[12][64];
+//random enPassant keys
+extern U64 enPassantKeys[65];
+//random castling keys
+extern U64 castleKeys[16];
+//random side key
+extern U64 sideKeys;
+//hashtable
+//extern tt hashTable[hashSize];
 
 
 extern unsigned int state;
@@ -88,6 +117,11 @@ U64 bishopAttacksOnTheFly(int square, U64 block);
 U64 rookAttacksOnTheFly(int square, U64 block);
 
 void initSlidersAttacks(int bishop);
+void initHashKeys();
 extern inline U64 getBishopAttacks(int square, U64 occupancy);
 extern inline U64 getRookAttacks(int square, U64 occupancy);
 extern inline U64 getQueenAttacks(int square, U64 occupancy);
+static inline void wipeTT();
+
+//extern inline int readHashEntry(int key, int alpha, int beta, int depth);
+//extern inline void writeHashEntry(int key, int score, int depth, int hash_flag);

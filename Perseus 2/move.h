@@ -41,10 +41,19 @@ typedef int moveInt;
 
 struct moves {
 	//moves
-    int m[128] = { 0 };
+    moveInt m[128] = { 0 };
 	
 	//move count
 	int count = 0;
+
+};
+
+struct smallMoves {
+    //moves
+    moveInt m[60] = { 0 };
+
+    //move count
+    int count = 0;
 
 };
 

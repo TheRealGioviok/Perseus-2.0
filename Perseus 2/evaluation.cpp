@@ -1,10 +1,10 @@
 #include "evaluation.h"
 #include <cmath>
-inline int basicEvaluate(Position pos) {
+inline int basicEvaluate(Position* pos) {
 	int score = 0;
 
 	for (int i = 0; i < 12; i++) {
-		score += (int)popcount(pos.bitboards[i]) * materialScoreMid[i];
+		score += (int)popcount(pos->bitboards[i]) * materialScoreMid[i];
 	}
 	return score;
 }
@@ -80,8 +80,13 @@ int evaluate(Position* pos) {
 
 	materialScore++;
 
-	bitScanReverse(&square, bitboards[11]);
-	score += kingScore[square];
+	bitScanReverse(&square, bitboards[5]);
+	if (popcount(pos->bitboards[P]) > popcount(pos->bitboards[p]))score += (8 - (square >> 3)) << 2;
+	if(!endgame)
+		score += kingScore[square];
+	else {
+		score += kingScoreEnd[square];
+	}
 	if (square >h8) {
 		score += (testBit(occupancies[white], square - 8)>0) * centralShield;
 		score += popcount(occupancies[white]) * sideShield;
@@ -151,7 +156,9 @@ int evaluate(Position* pos) {
 	}
 
 	bitScanReverse(&square, bitboards[11]);
-	score -= kingScore[mirrorScore[square]];
+	if(!endgame)score -= kingScore[mirrorScore[square]];
+	else score -= kingScoreEnd[mirrorScore[square]];
+	if (popcount(pos->bitboards[p]) > popcount(pos->bitboards[P]))score -= (square >> 3) << 2;
 	if (square < a1) {
 		score -= (testBit(occupancies[black], square + 8)>0) * centralShield;
 		score -= popcount(occupancies[black]) * sideShield;
@@ -205,6 +212,7 @@ int evaluate(Position* pos) {
 		score -= popcount(kingAttacks[bk] & bitboards[6]) * 5;
 		score -= 5 * (popcount(bitboards[2]) == 0);
 		score += 5 * (popcount(bitboards[8]) == 0);
+		
 	}
 
 	return score * (1-(2*pos->side));

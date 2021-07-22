@@ -7,12 +7,13 @@
 #define maxPly 64
 
 #define fullDepthMoves 4
+#define overReduct 8
 #define reductionLimit 3
 extern char asciiPieces[13];
 int charPieces(char piece);
 int getTimeMs();
 
-extern moveInt killerMoves[2][64];
+extern moveInt killerMoves[2][maxPly];
 extern moveInt historyMoves[12][64];
 extern int ply;
 //PV len
@@ -32,6 +33,9 @@ struct Position {
 	int enPassant = no_square;
 	// castling
 	int castle = 0;
+	//hash key
+	int hashKey;
+
 	void print();
 	void parseFen(const char* fen);
 	void wipe(); //widePopulation() sembrava troppo brutto
@@ -40,9 +44,10 @@ struct Position {
 	inline void operator=(const Position& other);
 	void printAttackedSquares(int sideToMove);
 	inline void generateMoves(moves* moveList);
+	inline void generateCaptures(moves* moveList);
 	inline int whiteCaptureValueAt(int square);
 	inline int blackCaptureValueAt(int square);
-	
+	inline void newKey();
 };
 
 void printPosition(Position p);
@@ -63,13 +68,14 @@ public:
 	void print();
 	void parseFen(const char* fen);
 	void generateMoves(moves* moveList);
+	void generateCaptures(moves* moveList);
 	void generateLegalMoves(moves* moveList);
 	void searchPosition(int depth);
 	bool isLegal(const char* moveString);
 	moveInt getLegal(const char* moveString);
 	inline int eval();
 	inline int makeMove(moveInt move, int flags);
-	inline int negaMax(int alpha, int beta, int depth);
+	inline int negaMax(int alpha, int beta, int depth,bool pv=false, int nulled=0);
 	U64 miniMax(int alpha, int beta, int depth);
 	int negaScout(int alpha, int beta, int depth);
 	inline int quiescence(int alpha,int beta);

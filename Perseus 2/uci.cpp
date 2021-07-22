@@ -151,15 +151,18 @@ void parseCommand(std::string command, Game* game) {
 		//position startpos/fen moves ...
 		if (command.find("moves") != std::string::npos) {
 			command = command.substr(6, command.size() - 6);
-			//std::cout << "Command is now: " << command << "\n";
+			std::cout << "Command is now: " << command << "\n";
 			//loop checking for moves
 			std::stringstream ss(command);
 			std::string move;
 			while (ss >> move) {
+				std::cout << "Newmove is now: " << move << "\n";
 				if (!game->makeMove(game->getLegal(move.c_str()), allMoves)) {
 					return;
 				}
 			}
+
+			std::cout << "Remaining garbage is " << ss.str() << "\n";
 		}
 		game->print();
 	}
@@ -241,7 +244,7 @@ void parseCommand(std::string command, Game* game) {
 void uciLoop() {
 	std::cout.flush();
 	std::cin.clear();
-	std::cin.ignore(100000, '\n');
+	std::cin.ignore(500, '\n');
 	std::cin.sync();
 
 	std::string input = "";
@@ -256,7 +259,7 @@ void uciLoop() {
 
 		input = ""; //reset read
 		//std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-		std::cout.flush();
+		//std::cout.flush();
 
 		//get user/GUI input
 		std::getline(std::cin, input);
@@ -281,5 +284,9 @@ void uciLoop() {
 			continue;
 		}
 		parseCommand(input, &g);
+		std::cout << std::endl;
+		std::cin.clear();
+		//std::cin.ignore(500, '\n');
+		std::cin.sync();
 	}
 }

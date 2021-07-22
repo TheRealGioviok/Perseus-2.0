@@ -1,7 +1,7 @@
 // Perseus 2.cpp : Questo file contiene la funzione 'main', in cui inizia e termina l'esecuzione del programma.
 //
 #include <iostream>
-#define debug false
+#define debug false;
 #include "chessBoard.h"
 #include "uci.h"
 #include "evaluation.h"
@@ -10,14 +10,10 @@ int main()
     //init tables
     initAll();
     //uci Loop
-    if (debug) {
-        //debug code
+    if (false){
+        Position pos();
         
-        Game game(startPosition);
-        game.searchPosition(6);
-        int x = 0;
-        std::cin >> x;
-
+        return 0;
     }
     else {
         uciLoop();

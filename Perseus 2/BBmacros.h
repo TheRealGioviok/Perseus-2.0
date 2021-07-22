@@ -6,6 +6,8 @@ void printBitBoard(U64 bitboard);
 
 
 //BIT OPERATION MACROS
+#define bitPerformance 1
+
 #define testBit(bitboard,square) ((bitboard) & (1ULL<<(square))) //Returns 1 if square-th bit of bitboard is 1, else 0
 #define setBit(bitboard,square) ((bitboard)|=(1ULL<<(square))) //sets bitboard square-th bit to 1
 #define clearBit(bitboard,square) ((bitboard) &= ~(1ULL << (square))) //clears bitboard square-th bit
