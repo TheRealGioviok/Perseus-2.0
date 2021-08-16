@@ -1,9 +1,11 @@
 #pragma once
 #include "BBmacros.h"
 #include "move.h"
+#include "chessBoard.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <iostream>
+#include "move.h"
 //pawn attack tables
 #define RANK_1 0xff
 #define RANK_2 0xff00
@@ -41,19 +43,29 @@
 #define NOTFILE_G 0xbfbfbfbfbfbfbfbf
 #define NOTFILE_H 0x7f7f7f7f7f7f7f7f
 
+const int centerBonusTable10[64] = { 0, 10, 20, 30, 30, 20, 10, 0,
+										10, 20, 20, 30, 30, 20, 20, 10,
+										0, 10, 30, 30, 30, 30, 10, 0,
+										5, 10, 25, 30, 30, 20, 10, 5,
+										5, 10, 20, 30, 30, 25, 10, 5,
+										0, 10, 30, 30, 30, 30, 10, 0,
+										10, 20, 20, 30, 30, 20, 20, 10,
+										0, 10, 20, 30, 30, 20, 10, 0 };
+
 //ttable flags
 
 #define hashEXACT 0
 #define hashALPHA 1
 #define hashBETA 2
-#define hashSize 0x4000
+#define hashSize 0x200000
 
 
 struct tt {
-	U64 key = 0ULL;
-	short depth = 0;
-	short flags = 0;
+	int key = 0ULL;
+	char depth = 0;
+	char flags = 0;
 	int score = 0;
+	moveInt move = 0;
 	inline void wipe();
 };
 
@@ -93,8 +105,15 @@ extern U64 enPassantKeys[65];
 extern U64 castleKeys[16];
 //random side key
 extern U64 sideKeys;
+//tropism
+extern int distBonus[64][64];
+extern int qkdist[64][64];
+extern int rkdist[64][64];
+extern int nkdist[64][64];
+extern int bkdist[64][64];
+extern int kbdist[64][64];
 //hashtable
-//extern tt hashTable[hashSize];
+extern tt* hashTable;
 
 
 extern unsigned int state;
@@ -107,7 +126,7 @@ void initMagicNumbers();
 void initializePawnAttacks();
 void initializeLeaperAttacks();
 void initAll();
-
+void initTropism();
 
 U64 setOccupancy(int index, __int64 bitsInMask, U64 attackMask);
 U64 maskPawnAttacks(int square, int sideToMove); //generate pawn attacks for square-side to move
@@ -121,7 +140,9 @@ void initHashKeys();
 extern inline U64 getBishopAttacks(int square, U64 occupancy);
 extern inline U64 getRookAttacks(int square, U64 occupancy);
 extern inline U64 getQueenAttacks(int square, U64 occupancy);
-static inline void wipeTT();
+extern inline void wipeTT();
+extern inline void ageTT();
 
-//extern inline int readHashEntry(int key, int alpha, int beta, int depth);
-//extern inline void writeHashEntry(int key, int score, int depth, int hash_flag);
+extern inline int readHashEntry(int key, int alpha, int beta, int depth);
+extern inline void writeHashEntry(int key, int score, int depth, moveInt move, int hash_flag);
+extern inline tt* getEntry(int key);

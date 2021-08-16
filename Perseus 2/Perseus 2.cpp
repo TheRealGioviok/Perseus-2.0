@@ -5,13 +5,23 @@
 #include "chessBoard.h"
 #include "uci.h"
 #include "evaluation.h"
+
+
+tt* hashTable;
+
 int main()
 {
     //init tables
     initAll();
     //uci Loop
+    hashTable = new tt[hashSize];
+    for (int i = 0; i < hashSize; i++) {
+        hashTable[i] = tt();
+    }
+    wipeTT();
     if (false){
         Position pos();
+        
         
         return 0;
     }

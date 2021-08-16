@@ -9,12 +9,20 @@
 #define fullDepthMoves 4
 #define overReduct 8
 #define reductionLimit 3
+
+#define infinity 50000
+#define mateValue 49000
+#define mateScore 48000
+
 extern char asciiPieces[13];
 int charPieces(char piece);
 int getTimeMs();
 
 extern moveInt killerMoves[2][maxPly];
 extern moveInt historyMoves[12][64];
+extern moveInt counterMoves[64][64];
+extern U64 repetitionTable[128];
+extern int repetitionIndex;
 extern int ply;
 //PV len
 extern int pvLen[maxPly];
@@ -35,6 +43,7 @@ struct Position {
 	int castle = 0;
 	//hash key
 	int hashKey;
+	moveInt lastMove = 0;
 
 	void print();
 	void parseFen(const char* fen);
@@ -72,6 +81,7 @@ public:
 	void generateLegalMoves(moves* moveList);
 	void searchPosition(int depth);
 	bool isLegal(const char* moveString);
+	bool moveLegal(moveInt move);
 	moveInt getLegal(const char* moveString);
 	inline int eval();
 	inline int makeMove(moveInt move, int flags);

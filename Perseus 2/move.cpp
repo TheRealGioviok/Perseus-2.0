@@ -56,12 +56,12 @@ void addMove(moves* moveList, moveInt move, int bonus ) {
 		++moveList->count;
 		return;
 	}
-	else {
+	else if(!isCapture(move)){
 		#define centerBonus 10 //10 > 7 > 2 > 16
+#define centerBonus 10 //10 > 7 > 2 > 16
 		bonus += historyMoves[getMovePiece(move)][getMoveTarget(move)];
-		int s = getMoveSource(move);
-		bonus += (int)((3.5f - abs(3.5f - (float)(s & 0x7)))) * centerBonus;
-		bonus += (int)((3.5f - abs(3.5f - (float)(s >> 8)))) * centerBonus;
+		//int s = getMoveSource(move);
+		bonus += centerBonusTable10[getMoveTarget(move)];
 	    bonus >>= 3;
 	}
 	

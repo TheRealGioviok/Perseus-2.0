@@ -1,4 +1,5 @@
 #include "tables.h"
+#include "pestoEval.h"
 #include <intrin.h>
 
 #pragma intrinsic(_BitScanForward64)
@@ -155,6 +156,12 @@ U64 bishopMasks[64];
 U64 rookMasks[64];
 U64 bishopAttacks[64][512];
 U64 rookAttacks[64][4096];
+int distBonus[64][64];
+int qkdist[64][64];
+int rkdist[64][64];
+int nkdist[64][64];
+int bkdist[64][64];
+int kbdist[64][64];
 
 //relevancy occupancy bit count for each square for bishop
 const int bishopRelevantBits[64] = {
@@ -292,7 +299,56 @@ void initAll() {
 	initSlidersAttacks(1);
 	initSlidersAttacks(0);
 	initHashKeys();
+	initTropism();
+	init_tables();
 	//initMagicNumbers();
+}
+
+#define COL(x) x%8
+#define ROW(x) x>>3
+void initTropism() {
+
+	int diag_nw[64] = {
+	   0, 1, 2, 3, 4, 5, 6, 7,
+	   1, 2, 3, 4, 5, 6, 7, 8,
+	   2, 3, 4, 5, 6, 7, 8, 9,
+	   3, 4, 5, 6, 7, 8, 9,10,
+	   4, 5, 6, 7, 8, 9,10,11,
+	   5, 6, 7, 8, 9,10,11,12,
+	   6, 7, 8, 9,10,11,12,13,
+	   7, 8, 9,10,11,12,13,14
+	};
+
+	int diag_ne[64] = {
+	   7, 6, 5, 4, 3, 2, 1, 0,
+	   8, 7, 6, 5, 4, 3, 2, 1,
+	   9, 8, 7, 6, 5, 4, 3, 2,
+	  10, 9, 8, 7, 6, 5, 4, 3,
+	  11,10, 9, 8, 7, 6, 5, 4,
+	  12,11,10, 9, 8, 7, 6, 5,
+	  13,12,11,10, 9, 8, 7, 6,
+	  14,13,12,11,10, 9, 8, 7
+	};
+
+
+	int bonusDiaDistance[14] = { 5, 4, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+
+	int i, j;
+
+	for (i = 0; i < 64; ++i) {
+		for (j = 0; j < 64; ++j) {
+			distBonus[i][j] = 14 - (abs((COL(i)) - (COL(j))) + abs((ROW(i)) - (ROW(j))));
+
+			qkdist[i][j] = (distBonus[i][j] * 5) / 2;
+			rkdist[i][j] = distBonus[i][j] / 2;
+			nkdist[i][j] = distBonus[i][j];
+			/* bk_dist[i][j] takes into account the numbers of the diagonals */
+			bkdist[i][j] = distBonus[i][j] / 2;
+			kbdist[i][j] += bonusDiaDistance[abs(diag_ne[i] - diag_ne[j])];
+			kbdist[i][j] += bonusDiaDistance[abs(diag_nw[i] - diag_nw[j])];
+		}
+	}
+
 }
 
 U64 setOccupancy(int index, __int64 bitsInMask, U64 attackMask) {
@@ -529,7 +585,7 @@ U64 castleKeys[16];
 //random side key
 U64 sideKeys;
 //hashTable
-//tt hashTable[hashSize];
+extern tt*hashTable;
 
 void initHashKeys() {
 	//seed
@@ -555,9 +611,9 @@ void initHashKeys() {
 	sideKeys = getRandomNumber64();
 }
 
-static inline void wipeTT() {
+inline void wipeTT() {
 	for (int i = 0; i < hashSize; i++) {
-		//hashTable[i].wipe();
+		hashTable[i].wipe();
 	}
 }
 
@@ -566,33 +622,45 @@ inline void tt::wipe() {
 	depth = 0;
 	flags = 0;
 	score = 0;
-	
+	move = 0;
 }
-/*
+
 #define NOENTRY 100000
 inline int readHashEntry(int key, int alpha, int beta, int depth) {
 	//create a TT instance to point to hash entry
-	tt* hashEntry = & hashTable[key % hashSize];
+	
+	unsigned int target = key & (hashSize -1);
+
+	//std::cout << "trying to access hashTable at " << std::hex <<key<<" % "<<hashSize<<" = "<< target << std::endl;
+
+	tt *hashEntry = &hashTable[target];
+
 	// make sure we're dealing with the exact position we need
 	if (hashEntry->key == key)
 	{
 		// make sure that we match the exact depth our search is now at
 		if (hashEntry->depth >= depth)
 		{
+
+			int score = hashEntry->score;
+			if (score < -mateScore)score += ply;
+			if (score >  mateScore)score -= ply;
+
+
 			// match the exact (PV node) score 
 			if (hashEntry->flags == hashEXACT)
 				// return exact (PV node) score
-				return hashEntry->score;
+				return score;
 
 			// match alpha (fail-low node) score
 			if ((hashEntry->flags == hashALPHA) &&
-				(hashEntry->score <= alpha))
+				(score <= alpha))
 				// return alpha (fail-low node) score
 				return alpha;
 
 			// match beta (fail-high node) score
 			if ((hashEntry->flags == hashBETA) &&
-				(hashEntry->score >= beta))
+				(score >= beta))
 				// return beta (fail-high node) score
 				return beta;
 		}
@@ -601,14 +669,37 @@ inline int readHashEntry(int key, int alpha, int beta, int depth) {
 	return NOENTRY;
 }
 
-inline void writeHashEntry(int key, int score, int depth, int hashFlag){
+inline void writeHashEntry(int key, int score, int depth, moveInt move, int hashFlag) {
 	// create a TT instance pointer to particular hash entry storing
 	// the scoring data for the current board position if available
-	tt* hash_entry = &hashTable[key % hashSize];
+	unsigned int target = key & (hashSize - 1);
+	tt* hash_entry = &hashTable[target];
+
+	if (depth < hash_entry->depth) return;
+
+	if (score < -mateScore)score -= ply;
+	if (score >  mateScore)score += ply;
+
+	
 
 	// write hash entry data 
 	hash_entry->key = key;
 	hash_entry->score = score;
 	hash_entry->flags = hashFlag;
 	hash_entry->depth = depth;
-}*/
+	hash_entry->move = move;
+}
+
+inline tt* getEntry(int key) {
+	unsigned int target = key & (hashSize - 1);
+	return &hashTable[target];
+}
+
+inline void ageTT() {
+	for (int i = 0; i < hashSize; i++) {
+		if (hashTable[i].depth == 1) {
+			hashTable[i].wipe();
+		}
+		hashTable[i].depth--;
+	}
+}

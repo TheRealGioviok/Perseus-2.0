@@ -119,9 +119,11 @@ void parseCommand(std::string command, Game* game) {
 	if (command.find("ucinewgame") != std::string::npos) {
 		game->parseFen(startPosition);
 		game->print();
+		wipeTT();
 		return;
 	}
 	if (command.find("position") != std::string::npos) {
+		wipeTT();
 		command = command.substr(9, command.size() - 9);
 		//std::cout << "Command is now: " << command << "\n";
 		//position startpos
@@ -201,12 +203,14 @@ void parseCommand(std::string command, Game* game) {
 	}
 
 	if (command.find("make") != std::string::npos) {
+		
 		command = command.substr(4, command.size() - 4);
 		//std::cout << "Command is now: " << command << "\n";
 		//init depth
 		int depth = 6;
 		//go depth n (fixed search)
 		if (command.find("depth") != std::string::npos) {
+			
 			command = command.substr(6, command.size() - 6);
 			//std::cout << "Command is now: " << command << "\n";
 
