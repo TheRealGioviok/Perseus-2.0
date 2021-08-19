@@ -36,6 +36,9 @@
     <ClCompile Include="move.cpp">
       <Filter>File di origine</Filter>
     </ClCompile>
+    <ClCompile Include="pestoEval.cpp">
+      <Filter>File di origine</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="tables.h">
@@ -54,6 +57,9 @@
       <Filter>File di intestazione</Filter>
     </ClInclude>
     <ClInclude Include="uci.h">
+      <Filter>File di intestazione</Filter>
+    </ClInclude>
+    <ClInclude Include="pestoEval.h">
       <Filter>File di intestazione</Filter>
     </ClInclude>
   </ItemGroup>

@@ -37,7 +37,7 @@ void printMoveList(moves* moveList) {
 }
 
 void addMove(moves* moveList, moveInt move, int bonus ) {
-	
+	++moveList->count;
 	if (pvTable[0][ply] == move) {
 		move |= (0xff000000);
 		moveList->m[moveList->count] = move;
@@ -67,5 +67,5 @@ void addMove(moves* moveList, moveInt move, int bonus ) {
 	
 	move |= (bonus << 24);
 	moveList->m[moveList->count] = move;
-	++moveList->count;
+	
 }

@@ -159,7 +159,7 @@ void parseCommand(std::string command, Game* game) {
 			std::string move;
 			while (ss >> move) {
 				std::cout << "Newmove is now: " << move << "\n";
-				if (!game->makeMove(game->getLegal(move.c_str()), allMoves)) {
+				if (!game->makeMove(game->getLegal(move.c_str()))) {
 					return;
 				}
 			}
@@ -224,7 +224,7 @@ void parseCommand(std::string command, Game* game) {
 			std::cout << "Time elapsed : " << (time2 - timer) << "\n";
 			std::cout << "Nodes: " << game->nodes << "\n";
 			std::cout << "Speed: " << (game->nodes / (time2 - timer)) << "kN/S\n";
-			game->makeMove(pvTable[0][0], allMoves);
+			game->makeMove(pvTable[0][0]);
 			game->print();
 		}
 		else {
@@ -232,7 +232,7 @@ void parseCommand(std::string command, Game* game) {
 			moveInt move = game->getLegal(command.c_str());
 			if (move) {
 				std::cout << "Playing move " << command << "\n";
-				game->makeMove(move,allMoves);
+				game->makeMove(move);
 				game->print();
 			}
 			else {

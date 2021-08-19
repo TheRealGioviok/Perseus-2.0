@@ -7,12 +7,12 @@
 moveInt killerMoves[2][maxPly] = { {0} };
 moveInt historyMoves[12][64] = { {0	} };
 moveInt counterMoves[64][64] = { {0} };
-U64 repetitionTale[128] = { 0 };
+U64 repetitionTable[128] = { 0 };
 int repetitionIndex = 0;
 
 /*
 
-repetitionIndex++;
+++repetitionIndex;
 repetitionTable[repetitionIndex] = pos.hashKey;
 
 
@@ -55,7 +55,7 @@ inline int Game::eval() {
 	return evaluate(&pos);
 #endif
 }
-#define VALWINDOW 120
+#define VALWINDOW 12
 void Game::searchPosition(int depth) {
 
 	int score = 0;
@@ -132,7 +132,18 @@ bool Game::moveLegal(moveInt move) {
 	return false;
 }
 
+inline bool Game::isRepetition() {
+	//loop over rep indicies
+	for (int index = 0; index < repetitionIndex; ++index) {
+		if (pos.hashKey == repetitionTable[index])return true;
+	}
+	//if no repetition
+	return false;
+}
+
 inline int Game::quiescence(int alpha, int beta) {
+
+	
 	//if ((nodes & 2047) == 0) communicate();
 	++nodes;
 
@@ -167,8 +178,8 @@ inline int Game::quiescence(int alpha, int beta) {
 	for (int i = 0; i < moveList->count; ++i) {
 
 		++ply;
-		if (makeMove(moveList->m[i], onlyCaptures) == 0) {
-			ply--;
+		if (makeMove(moveList->m[i]) == 0) {
+			--ply;
 			pos = *save;
 			//if (stopped == true)return 0;
 			continue;
@@ -176,7 +187,7 @@ inline int Game::quiescence(int alpha, int beta) {
 		int score = -quiescence(-beta, -alpha);
 		pos = *save;
 
-		ply--;
+		--ply;
 		//if (stopped == true)return 0;
 
 		if (score >= beta) {
@@ -200,9 +211,12 @@ inline int Game::quiescence(int alpha, int beta) {
 
 inline int Game::negaMax(int alpha, int beta, int depth, bool pv, int nulled) {
 	//if ((nodes & 2047) == 0) communicate();
-	
+	if (ply && isRepetition())return 0;
+
 	int hashFlag = hashALPHA;
 	int score;
+
+
 
 	bool pvNode = (beta - alpha) > 1;
 
@@ -230,7 +244,14 @@ inline int Game::negaMax(int alpha, int beta, int depth, bool pv, int nulled) {
 	//Null MP
 	
 	if (!pv && nulled<=4 && depth >= 3 && inCheck == 0 && ply) {
-		ply++;
+		++ply;
+		//++repetitionIndex;
+		//repetitionTable[repetitionIndex] = pos.hashKey;
+
+
+		repetitionIndex++;
+		repetitionTable[repetitionIndex] = pos.hashKey;
+
 		pos.side ^= 1;
 		int exPassant = pos.enPassant;
 		pos.enPassant = no_square;
@@ -241,7 +262,11 @@ inline int Game::negaMax(int alpha, int beta, int depth, bool pv, int nulled) {
 		R += depth > 4;
 		R = min(R, 5 - nulled);
 		int sscore = -negaMax( -beta, -beta + 1, depth - 1 - R ,false,nulled+R);
-		ply--;
+		--ply;
+		--repetitionIndex;
+		
+
+
 		pos.side ^= 1;
 		pos.enPassant = exPassant;
 		pos.hashKey ^= sideKeys;
@@ -263,6 +288,16 @@ inline int Game::negaMax(int alpha, int beta, int depth, bool pv, int nulled) {
 	Position* save = new Position(pos);
 
 	tt* entry = getEntry(pos.hashKey);
+
+	/*if (entry->key == pos.hashKey) {
+		for (int index = 0; index < moveList->count; index++) {
+			if (moveList->m[index] == entry->move) {
+				moveList->m[0] = moveList->m[index];
+				moveList->m[index] = 0;
+			}
+		}
+	}*/
+	/*
 	moveInt bestMove = 0;
 	//test bestmove first if lower depth already analyzed
 	if (entry->key == pos.hashKey) {
@@ -313,20 +348,25 @@ inline int Game::negaMax(int alpha, int beta, int depth, bool pv, int nulled) {
 						}
 					}
 				}
+				break;
 			}
 		}
 	}
-
+	*/
 
 	//OTTIMIZZAZIONE : PREV POS IS THE SAME THROUGHT THE WHOLE FOR CYCLE, MAYBE NOT SAVING IN MAKEMOVE?
 	moveInt currMove;
-	
+	moveInt bestMove;
 	for (int i = 0; i < moveList->count; ++i) {
 		 currMove = onlyMove(moveList->m[i]);
 		//if (currMove == entry->move)continue;
 		++ply;
-		if (makeMove(currMove, allMoves) == 0) {
-			ply--;
+		++repetitionIndex;
+		repetitionTable[repetitionIndex] = pos.hashKey;
+
+		if (makeMove(currMove) == 0) {
+			--ply;
+			--repetitionIndex;
 			pos = *save;
 			//if (stopped == true)return 0;
 			continue;
@@ -340,6 +380,7 @@ inline int Game::negaMax(int alpha, int beta, int depth, bool pv, int nulled) {
 			if (newValue < beta) {
 				pos = *save;
 				--ply;
+				--repetitionIndex;
 				delete moveList;
 				delete save;
 
@@ -382,8 +423,8 @@ inline int Game::negaMax(int alpha, int beta, int depth, bool pv, int nulled) {
 		pos = *save;
 		//if (stopped == true)return 0;
 		++moveSearched;
-		ply--;
-
+		--ply;
+		--repetitionIndex;
 
 		
 		
@@ -635,7 +676,7 @@ U64 _perftDriver(int depth,Game *game)
 
 	game->generateMoves(move_list);
 	for (i = 0; i < move_list->count; i++) {
-		if (game->makeMove(move_list->m[i], allMoves)) {
+		if (game->makeMove(move_list->m[i])) {
 			if (depth == 1) ++nodes;
 			else nodes += _perftDriver(depth - 1, game);
 			game->prevState();
@@ -1653,7 +1694,213 @@ void Game::generateCaptures(moves* moveList) {
 void Game::generateLegalMoves(moves* moveList) { 
 	pos.generateMoves(moveList);
 }
+/*
+inline int Game::makeMove(moveInt move) {
+	if (!move)return 0;
+	int source = getMoveSource(move);
+	int target = getMoveTarget(move);
+	int piece = getMovePiece(move);
 
+
+	//move the piece
+
+	setBit(pos.bitboards[piece], target);
+	clearBit(pos.bitboards[piece], source);
+
+	//hash update
+	//remove piece from source and put it on target
+	pos.hashKey ^= pieceKeys[piece][source];
+	pos.hashKey ^= pieceKeys[piece][target];
+
+	//handle capture
+#define clearMode 0
+#if clearMode == 0
+	if (getCaptureFlag(move)) {
+		if (pos.side == white) {
+			if (testBit(pos.bitboards[6], target)) {
+				//if piece, remove
+				clearBit(pos.bitboards[6], target);
+				pos.hashKey ^= pieceKeys[6][target];
+				goto NEXT;
+			}
+			else if (testBit(pos.bitboards[7], target)) {
+				//if piece, remove
+				clearBit(pos.bitboards[7], target);
+				pos.hashKey ^= pieceKeys[7][target];
+				goto NEXT;
+			}
+			else if (testBit(pos.bitboards[8], target)) {
+				//if piece, remove
+				clearBit(pos.bitboards[8], target);
+				pos.hashKey ^= pieceKeys[8][target];
+				goto NEXT;
+			}
+			else if (testBit(pos.bitboards[9], target)) {
+				//if piece, remove
+				clearBit(pos.bitboards[9], target);
+				pos.hashKey ^= pieceKeys[9][target];
+				goto NEXT;
+			}
+			//if piece, remove
+			clearBit(pos.bitboards[10], target);
+			pos.hashKey ^= pieceKeys[10][target];
+		}
+		else {
+			if (testBit(pos.bitboards[0], target)) {
+				//if piece, remove
+				clearBit(pos.bitboards[0], target);
+				pos.hashKey ^= pieceKeys[0][target];
+				goto NEXT;
+			}
+			else if (testBit(pos.bitboards[1], target)) {
+				//if piece, remove
+				clearBit(pos.bitboards[1], target);
+				pos.hashKey ^= pieceKeys[1][target];
+				goto NEXT;
+			}
+			else if (testBit(pos.bitboards[2], target)) {
+				//if piece, remove
+				clearBit(pos.bitboards[2], target);
+				pos.hashKey ^= pieceKeys[2][target];
+				goto NEXT;
+			}
+			else if (testBit(pos.bitboards[3], target)) {
+				//if piece, remove
+				clearBit(pos.bitboards[3], target);
+				pos.hashKey ^= pieceKeys[3][target];
+				goto NEXT;
+			}
+			//if piece, remove
+			clearBit(pos.bitboards[4], target);
+			pos.hashKey ^= pieceKeys[4][target];
+		}
+	}
+#else
+		//if (getCaptureFlag(move)) {
+	if (pos.side) {
+		clearBit(pos.bitboards[0], target);
+		clearBit(pos.bitboards[1], target);
+		clearBit(pos.bitboards[2], target);
+		clearBit(pos.bitboards[3], target);
+		clearBit(pos.bitboards[4], target);
+	}
+	else {
+		clearBit(pos.bitboards[6], target);
+		clearBit(pos.bitboards[7], target);
+		clearBit(pos.bitboards[8], target);
+		clearBit(pos.bitboards[9], target);
+		clearBit(pos.bitboards[10], target);
+	}
+	//}
+#endif
+
+		//handle promotion
+NEXT: int promotion = getPromotion(move);
+	if (promotion) {
+		//erase pawn from target square
+
+		clearBit(pos.bitboards[(pos.side ? 6 : 0)], target);
+		//removing pawn and adding promotion
+		pos.hashKey ^= pieceKeys[piece][target];
+		pos.hashKey ^= pieceKeys[promotion][target];
+		//set promoted piece
+		setBit(pos.bitboards[promotion], target);
+	}
+
+	//handling croissants
+	if (getEnPassantFlag(move)) {
+		(pos.side) ? clearBit(pos.bitboards[P], target - 8) : clearBit(pos.bitboards[p], target + 8);
+	}
+
+	//remove enpassant (?)
+	pos.hashKey ^= enPassantKeys[pos.enPassant];
+	//handle double pushes (updating croissants)
+	if (getDoubleFlag(move)) {
+		int enPass = (pos.side) ? (target - 8) : (target + 8);
+		pos.hashKey ^= enPassantKeys[enPass];
+		pos.enPassant = enPass;
+	}
+	else {
+		//reset croissants
+		pos.enPassant = no_square;
+	}
+
+	//handling castle
+	if (getCastleFlag(move)) {
+		switch (target) {
+		case c1:
+			clearBit(pos.bitboards[R], a1);
+			setBit(pos.bitboards[R], d1);
+			//hash castle rook
+			pos.hashKey ^= pieceKeys[R][a1];
+			pos.hashKey ^= pieceKeys[R][d1];
+			break;
+
+		case g1:
+			clearBit(pos.bitboards[R], h1);
+			setBit(pos.bitboards[R], f1);
+			//hash castle rook
+			pos.hashKey ^= pieceKeys[R][h1];
+			pos.hashKey ^= pieceKeys[R][f1];
+			break;
+
+		case c8:
+			clearBit(pos.bitboards[r], a8);
+			setBit(pos.bitboards[r], d8);
+			//hash castle rook
+			pos.hashKey ^= pieceKeys[R][a8];
+			pos.hashKey ^= pieceKeys[R][d8];
+			break;
+
+		case g8:
+			clearBit(pos.bitboards[r], h8);
+			setBit(pos.bitboards[r], f8);
+			//hash castle rook
+			pos.hashKey ^= pieceKeys[R][h8];
+			pos.hashKey ^= pieceKeys[R][f8];
+			break;
+		}
+	}
+
+	//remove hash
+	pos.hashKey ^= castleKeys[pos.castle];
+	//calculate new castle
+	pos.castle &= castlingRights[source];
+	pos.castle &= castlingRights[target];
+	//put new castle
+	pos.hashKey ^= castleKeys[pos.castle];
+
+
+
+	pos.occupancies[0] = pos.bitboards[0] | pos.bitboards[1] | pos.bitboards[2] | pos.bitboards[3] | pos.bitboards[4] | pos.bitboards[5];
+	pos.occupancies[1] = pos.bitboards[6] | pos.bitboards[7] | pos.bitboards[8] | pos.bitboards[9] | pos.bitboards[10] | pos.bitboards[11];
+	pos.occupancies[2] = pos.occupancies[1] | pos.occupancies[0];
+
+	// italy moment
+	pos.side ^= 1;
+	pos.hashKey ^= sideKeys;
+
+	// make sure that king has not been exposed into a check
+	unsigned long king = 0ULL;
+	(pos.side) ? bitScanReverse(&king, pos.bitboards[K]) : bitScanForward(&king, pos.bitboards[k]);
+
+
+	if (pos.isSquareAttacked(king, pos.side))
+	{
+		// return illegal move
+		return 0;
+	}
+
+
+	//pos.side ^= 1;
+	//nice move
+
+	//positionStack.push(pos);
+	//saveState();
+	pos.lastMove = move;
+	return 1;
+
+}*/
 
 inline int Game::makeMove(moveInt move, int flags) {
 	//std::cout << "call\n";

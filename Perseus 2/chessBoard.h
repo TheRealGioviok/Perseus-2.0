@@ -82,9 +82,10 @@ public:
 	void searchPosition(int depth);
 	bool isLegal(const char* moveString);
 	bool moveLegal(moveInt move);
+	inline bool isRepetition();
 	moveInt getLegal(const char* moveString);
 	inline int eval();
-	inline int makeMove(moveInt move, int flags);
+	inline int makeMove(moveInt move, int flags = allMoves);
 	inline int negaMax(int alpha, int beta, int depth,bool pv=false, int nulled=0);
 	U64 miniMax(int alpha, int beta, int depth);
 	int negaScout(int alpha, int beta, int depth);

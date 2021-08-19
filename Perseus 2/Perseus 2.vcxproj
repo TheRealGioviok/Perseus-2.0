@@ -149,8 +149,10 @@
       <OmitFramePointers>true</OmitFramePointers>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <LanguageStandard_C>stdc17</LanguageStandard_C>
-      <CallingConvention>FastCall</CallingConvention>
+      <CallingConvention>StdCall</CallingConvention>
       <FloatingPointModel>Fast</FloatingPointModel>
+      <EnableEnhancedInstructionSet>AdvancedVectorExtensions</EnableEnhancedInstructionSet>
+      <IntelJCCErratum>true</IntelJCCErratum>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -170,7 +172,10 @@
     <ClCompile Include="evaluation.cpp" />
     <ClCompile Include="move.cpp" />
     <ClCompile Include="Perseus 2.cpp" />
-    <ClCompile Include="tables.cpp" />
+    <ClCompile Include="pestoEval.cpp" />
+    <ClCompile Include="tables.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</ExcludedFromBuild>
+    </ClCompile>
     <ClCompile Include="uci.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -178,6 +183,7 @@
     <ClInclude Include="chessBoard.h" />
     <ClInclude Include="evaluation.h" />
     <ClInclude Include="move.h" />
+    <ClInclude Include="pestoEval.h" />
     <ClInclude Include="tables.h" />
     <ClInclude Include="uci.h" />
   </ItemGroup>
