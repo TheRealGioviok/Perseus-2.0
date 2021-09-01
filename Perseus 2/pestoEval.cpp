@@ -472,9 +472,9 @@ int pestoEval(Position* pos) {
 
 
     /* tapered eval */
-
-    int whiteKingShield = popcount(bitboards[0] & kingAttacks[wk]) - 3;
-    int blackKingShield = popcount(bitboards[6] & kingAttacks[bk]) - 3;
+    //TODO: make a pawnShield mask
+    int whiteKingShield = popcount(bitboards[0] & kingAttacks[wk] & ranks[(wk>>3) - 1]) - 3;
+    int blackKingShield = popcount(bitboards[6] & kingAttacks[bk] & ranks[(bk >> 3) + 1]) - 3;
 #define INITIAL_PIECE_MATERIAL 4039
     int whiteKingSafety = 2 * ((whiteKingShield - tropismToWhiteKing) * whiteMat) / INITIAL_PIECE_MATERIAL;
     int blackKingSafety = 2 * ((blackKingShield - tropismToBlackKing) * blackMat) / INITIAL_PIECE_MATERIAL;

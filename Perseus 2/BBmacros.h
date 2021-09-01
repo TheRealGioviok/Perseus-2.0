@@ -11,7 +11,7 @@ void printBitBoard(U64 bitboard);
 #define testBit(bitboard,square) ((bitboard) & (1ULL<<(square))) //Returns 1 if square-th bit of bitboard is 1, else 0
 #define setBit(bitboard,square) ((bitboard)|=(1ULL<<(square))) //sets bitboard square-th bit to 1
 #define clearBit(bitboard,square) ((bitboard) &= ~(1ULL << (square))) //clears bitboard square-th bit
-#define squareBB(square) ((1ULL<<square)) //gets bitboard equivalent to 0ULL -> setBit(0ULL,square)
+#define squareBB(square) (((1ULL<<square))) //gets bitboard equivalent to 0ULL -> setBit(0ULL,square)
 #define popcount __popcnt64
 #define bitScanForward _BitScanForward64 //ls1b
 #define bitScanReverse _BitScanReverse64 //ms1b
