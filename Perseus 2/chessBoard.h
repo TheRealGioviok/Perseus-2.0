@@ -19,7 +19,7 @@ int charPieces(char piece);
 int getTimeMs();
 
 extern moveInt killerMoves[2][maxPly];
-extern moveInt historyMoves[12][64];
+extern int historyMoves[12][64];
 extern moveInt counterMoves[64][64];
 extern U64 repetitionTable[128];
 extern int repetitionIndex;
@@ -36,11 +36,11 @@ struct Position {
 	U64 occupancies[3] = { 0ULL,0ULL,0ULL };
 	
 	//data
-	int side = -1; //so it needs to be initialized
+	signed char side = -1; //so it needs to be initialized
 	// enPassantSquare
-	int enPassant = no_square;
+	char enPassant = no_square;
 	// castling
-	int castle = 0;
+	signed char castle = 0;
 	//hash key
 	int hashKey;
 	moveInt lastMove = 0;
@@ -52,11 +52,12 @@ struct Position {
 	inline bool isSquareAttacked(unsigned int square, int sideToMove);
 	inline void operator=(const Position& other);
 	void printAttackedSquares(int sideToMove);
-	inline void generateMoves(moves* moveList);
+	inline void generateMoves(moves* moveList, bool isCheck = false);
 	inline void generateCaptures(moves* moveList);
 	inline int whiteCaptureValueAt(int square);
 	inline int blackCaptureValueAt(int square);
 	inline void newKey();
+	inline void addMove(moves* moveList, moveInt move, int bonus = 0);
 };
 
 void printPosition(Position p);
@@ -76,7 +77,7 @@ public:
 	void prevState();
 	void print();
 	void parseFen(const char* fen);
-	void generateMoves(moves* moveList);
+	void generateMoves(moves* moveList, bool isCheck = false);
 	void generateCaptures(moves* moveList);
 	void generateLegalMoves(moves* moveList);
 	void searchPosition(int depth);
@@ -86,7 +87,7 @@ public:
 	moveInt getLegal(const char* moveString);
 	inline int eval();
 	inline int makeMove(moveInt move, int flags = allMoves);
-	inline int negaMax(int alpha, int beta, int depth,bool pv=false, int nulled=0);
+	inline int negaMax(int alpha, int beta, int depth,bool pv=false, double nulled = 0);
 	U64 miniMax(int alpha, int beta, int depth);
 	int negaScout(int alpha, int beta, int depth);
 	inline int quiescence(int alpha,int beta);

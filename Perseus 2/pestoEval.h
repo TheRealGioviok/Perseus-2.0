@@ -25,6 +25,7 @@
 #define BLACK_KING      (2*KING   + BLACK)
 #define EMPTY           (BLACK_KING  +  1)
 
+
 #define PCOLOR(p) ((p)&1)
 
 
@@ -33,6 +34,19 @@
 
 const int mg_value[6] = { 82, 337, 365, 477, 1025,  0 };
 const int eg_value[6] = { 94, 281, 297, 512,  936,  0 };
+const double drawVals[6] = { 0.3, 0.5, 0.51, 1, 3, 0 };
+const double endKingTable[64] = {
+	85.75 , 58.5 , 46.25 , 43.0 , 43.0 , 46.25 , 58.5 , 85.75 ,
+58.5 , 31.25 , 19.0 , 15.75 , 15.75 , 19.0 , 31.25 , 58.5 ,
+46.25 , 19.0 , 6.75 , 3.5 , 3.5 , 6.75 , 19.0 , 46.25 ,
+43.0 , 15.75 , 3.5 , 0.25 , 0.25 , 3.5 , 15.75 , 43.0 ,
+43.0 , 15.75 , 3.5 , 0.25 , 0.25 , 3.5 , 15.75 , 43.0 ,
+46.25 , 19.0 , 6.75 , 3.5 , 3.5 , 6.75 , 19.0 , 46.25 ,
+58.5 , 31.25 , 19.0 , 15.75 , 15.75 , 19.0 , 31.25 , 58.5 ,
+85.75 , 58.5 , 46.25 , 43.0 , 43.0 , 46.25 , 58.5 , 85.75 ,
+};
+
+extern int manhattanDistance[64][64];
 
 /* piece/sq tables */
 /* values from Rofchade: http://www.talkchess.com/forum3/viewtopic.php?f=2&t=68311&start=19 */

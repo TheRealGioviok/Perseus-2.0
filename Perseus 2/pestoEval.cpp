@@ -1,5 +1,5 @@
 #include "pestoEval.h"
-
+#include <math.h>
 
 /* piece/sq tables */
 /* values from Rofchade: http://www.talkchess.com/forum3/viewtopic.php?f=2&t=68311&start=19 */
@@ -159,8 +159,20 @@ int* eg_pesto_table[6] =
 int gamephaseInc[12] = { 0,0,1,1,1,1,2,2,4,4,0,0 };
 int mg_table[12][64];
 int eg_table[12][64];
+int manhattanDistance[64][64] = { 0 };
 
 void init_tables() {
+
+    for (int x1 = 0; x1 < 8; x1++) {
+        for (int y1 = 0; y1 < 8; y1++) {
+            for (int x2 = 0; x2 < 8; x2++) {
+                for (int y2 = 0; y2 < 8; y2++) {
+                    manhattanDistance[x1 + y1 * 8][x2 + y2 * 8] = std::min(abs(x1-x2),abs(y1-y2));
+                }
+            }
+        }
+    }
+
     int pc, p, sq;
     for (p = PAWN, pc = WHITE_PAWN; p <= KING; pc += 2, p++) {
         for (sq = 0; sq < 64; sq++) {
@@ -180,6 +192,12 @@ void init_tables() {
 #define bishopColorWeakness 5
 #define openFileRook 10
 
+#define advancedPawnEval true
+#define advancedKnightEval true
+#define advancedBishopEval true
+#define advancedRookEval true
+#define advancedQueenEval true
+
 //const int mg_value[6] = { 82, 337, 365, 477, 1025,  0 };
 int pestoEval(Position* pos) {
     int mg[2];
@@ -187,6 +205,57 @@ int pestoEval(Position* pos) {
     int gamePhase = 0;
     int whiteMat = 0;
     int blackMat = 0;
+
+    
+    //DRAW BY INSUFFICIENT MATERIAL
+    double draw = 0;
+    for (int i = 0 + (6 * pos->side); i < 6 + (6 * pos->side); ++i) {
+        draw += popcount(pos->bitboards[i])*drawVals[i%6];
+    }
+
+
+    int score = 0; //for end games
+    bool isEndGame = false;
+    char endGame = 0;
+
+    if (popcount(pos->occupancies[11]) == 1) {
+        isEndGame = true;
+
+        endGame = 1; //White winning
+    }
+
+    if (popcount(pos->occupancies[5]) == 1) {
+        isEndGame = true;
+
+        if (endGame)return 0; //K v K
+         endGame = 2; //black winning
+    }
+
+    if (isEndGame) {
+        if (endGame == 0)return 0;
+
+
+
+        if (endGame == 1) {
+            unsigned long losingKing;
+            bitScanForward(&losingKing, pos->occupancies[11]);
+            score += endKingTable[losingKing];
+            unsigned long winningKing;
+            bitScanForward(&winningKing, pos->occupancies[5]);
+            score += (manhattanDistance[winningKing][losingKing] == 2) * 100;
+        }
+        else {
+            unsigned long losingKing;
+            bitScanForward(&losingKing, pos->occupancies[5]);
+            score -= endKingTable[losingKing];
+            unsigned long winningKing;
+            bitScanForward(&winningKing, pos->occupancies[11]);
+            score += (manhattanDistance[winningKing][losingKing] == 2) * 100;
+        }
+    }
+    
+    //if K v KP
+    
 
     mg[WHITE] = 0;
     mg[BLACK] = 0;
@@ -205,8 +274,10 @@ int pestoEval(Position* pos) {
     int tropismToWhiteKing = 0;
     int tropismToBlackKing = 0;
     //int colorWeakness = 0;
-    int score = 0;
     U64 bitboard = bitboards[0];
+    //pawn count
+    int whitePawnCount = popcount(pos->bitboards[0]);
+    int blackPawnCount = popcount(pos->bitboards[6]);
 
     while (bitboard) {
         unsigned long sq;
@@ -217,6 +288,12 @@ int pestoEval(Position* pos) {
         eg[0] += eg_table[0][sq];
         whiteMat += 82;
         gamePhase += gamephaseInc[0];
+#if advancedPawnEval == true
+        if ((files[sq & 7] & pos->occupancies[black]) == 0) score += (8 - (sq >> 3)) <<2; //passed pawns
+        if (popcount(files[sq & 7] & pos->bitboards[0])>1) score -= 25; //doubled pawns
+        if ((sq == e2 || sq == d2) && (pos->occupancies[both] & squareBB(sq-8)))score -= 15; //blocked d2/e2 pawn
+        if (isolated[sq & 7] & pos->bitboards[0] <= 1) score -= 10 * (sq >> 3); //isolated backward
+#endif
     }
 
     bitboard = bitboards[6];
@@ -229,6 +306,12 @@ int pestoEval(Position* pos) {
         eg[1] += eg_table[1][sq];
         blackMat += 82;
         gamePhase += gamephaseInc[1];
+#if advancedPawnEval == true
+        if ((files[sq & 7] & pos->occupancies[white]) == 0) score -= (sq >> 3) << 2; //passed pawns
+        if (popcount(files[sq & 7] & pos->bitboards[6]) > 1) score += 25; //doubled pawns
+        if ((sq == e7 || sq == d7) && (pos->occupancies[both] & squareBB(sq+8)))score += 15; //blocked d2/e2 pawn
+        if (isolated[sq & 7] & pos->bitboards[6] <= 1) score += 10 * (8-(sq >> 3)); //isolated backward
+#endif
     }
 
     bitboard = bitboards[1];
@@ -241,6 +324,10 @@ int pestoEval(Position* pos) {
         gamePhase += gamephaseInc[2];
         whiteMat += 337;
         tropismToBlackKing += nkdist[sq][bk];
+#if advancedKnightEval == true
+        score -= 8 - whitePawnCount; //best on closed positions
+        score += 5 * (pawnAttacks[black][sq] & pos->bitboards[0] > 0); //defended by pawn
+#endif
     }
 
     bitboard = bitboards[7];
@@ -253,6 +340,10 @@ int pestoEval(Position* pos) {
         gamePhase += gamephaseInc[3];
         blackMat += 337;
         tropismToWhiteKing += nkdist[sq][wk];
+#if advancedKnightEval == true
+        score += 8 - whitePawnCount; //best on closed positions
+        score -= 5 * (pawnAttacks[white][sq] & pos->bitboards[6] > 0); //defended by pawn
+#endif
     }
 
     bitboard = bitboards[2];
@@ -265,7 +356,13 @@ int pestoEval(Position* pos) {
         gamePhase += gamephaseInc[4];
         whiteMat += 365;
         tropismToBlackKing += kbdist[sq][bk];
+#if advancedBishopEval == true
+        if ((pos->occupancies[5] & squareBB(sq + 8)) && (sq == g2 || sq == b2))score += 7; //fianchetto bonus
+#endif
     }
+#if advancedBishopEval == true
+    if (popcount(pos->bitboards[2]) == 2)score += ((8 - blackPawnCount) * (8 - blackPawnCount)); //bishop pair
+#endif
 
     bitboard = bitboards[8];
     while (bitboard) {
@@ -277,7 +374,13 @@ int pestoEval(Position* pos) {
         gamePhase += gamephaseInc[5];
         blackMat += 365;
         tropismToWhiteKing += kbdist[sq][wk];
+#if advancedBishopEval == true
+        if ((pos->occupancies[11] & squareBB(sq - 8)) && (sq == g7 || sq == b7))score -= 7; //fianchetto bonus
+#endif
     }
+#if advancedBishopEval == true
+    if (popcount(pos->bitboards[8]) == 2)score -= ((8 - blackPawnCount) * (8 - blackPawnCount)); //bishop pair
+#endif
 
     bitboard = bitboards[3];
     while (bitboard) {
@@ -290,6 +393,10 @@ int pestoEval(Position* pos) {
         //score += ((bitboards[11] & files[sq % 8]) > 0) * kingFileBonus + ((bitboards[6] & files[sq % 8]) == 0) * openFileRook;
         gamePhase += gamephaseInc[6];
         tropismToBlackKing += rkdist[sq][bk];
+#if advancedRookEval == true
+        score += popcount(files[sq & 7] & (pos->bitboards[10] | pos->bitboards[11])) * 3;
+        score += (popcount(ranks[sq >> 3] & pos->bitboards[3]) >= 2) * 15;
+#endif
     }
 
     bitboard = bitboards[9];
@@ -303,6 +410,10 @@ int pestoEval(Position* pos) {
         //score -=  ((bitboards[5]  & files[sq % 8]) > 0) * kingFileBonus + ((bitboards[0] & files[sq % 8]) == 0) * openFileRook;
         gamePhase += gamephaseInc[7];
         tropismToWhiteKing += rkdist[sq][wk];
+#if advancedRookEval == true
+        score -= popcount(files[sq & 7] & (pos->bitboards[4] | pos->bitboards[5])) * 3;
+        score -= (popcount(ranks[sq >> 3] & pos->bitboards[9]) >= 2) * 15;
+#endif
     }
 
     bitboard = bitboards[4];
@@ -315,6 +426,11 @@ int pestoEval(Position* pos) {
         gamePhase += gamephaseInc[8];
         whiteMat += 1025;
         tropismToBlackKing += qkdist[sq][bk];
+#if advancedQueenEval == true
+        //bad queen mobility malus
+        int qMob = 8 - popcount(pos->occupancies[both] & kingAttacks[sq]);
+        score -= (qMob * qMob) >> 2 ;
+#endif
     }
 
     bitboard = bitboards[10];
@@ -327,6 +443,11 @@ int pestoEval(Position* pos) {
         gamePhase += gamephaseInc[9];
         blackMat += 1025;
         tropismToWhiteKing += kbdist[sq][wk];
+#if advancedQueenEval == true
+        //bad queen mobility malus
+        int qMob = 8 - popcount(pos->occupancies[both] & kingAttacks[sq]);
+        score += (qMob * qMob) >> 2;
+#endif
     }
 
     bitboard = bitboards[5];
@@ -348,6 +469,8 @@ int pestoEval(Position* pos) {
         eg[1] += eg_table[11][sq];
         gamePhase += gamephaseInc[11];
     }
+
+
     /* tapered eval */
 
     int whiteKingShield = popcount(bitboards[0] & kingAttacks[wk]) - 3;
@@ -363,6 +486,7 @@ int pestoEval(Position* pos) {
     int mgPhase = gamePhase;
     if (mgPhase > 24) mgPhase = 24; /* in case of early promotion */
     int egPhase = 24 - mgPhase;
+
 
     /*
      score -= (int)(popcount(bitboards[0] & FILE_A) - 1) * 20;
@@ -405,5 +529,11 @@ int pestoEval(Position* pos) {
      score += 10 * (popcount(bitboards[2]) >= 2);
      score -= 10 * (popcount(bitboards[8]) >= 2);
      */
-    return (mgScore * mgPhase + egScore * egPhase) / 24;
+
+
+
+    
+
+
+    return (mgScore * mgPhase + egScore * egPhase) / 24 ;
 }

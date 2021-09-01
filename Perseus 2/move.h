@@ -10,7 +10,7 @@
 1000 0000 0000 0000 0000 0000  castling flag		0x800000 
 */
 #include <string>
-typedef int moveInt;
+typedef unsigned long long moveInt;
 #define encodeMove(source, target, piece, promoted, capture, double, enpassant, castling) \
     (source) |          \
     (target << 6) |     \
@@ -44,7 +44,7 @@ struct moves {
     moveInt m[128] = { 0 };
 	
 	//move count
-	int count = 0;
+	int count = 1;
 
 };
 
@@ -53,7 +53,7 @@ struct smallMoves {
     moveInt m[60] = { 0 };
 
     //move count
-    int count = 0;
+    int count = 1;
 
 };
 
@@ -61,10 +61,10 @@ char promotedPieces(int piece);
 std::string getMoveString(moveInt move);
 void printMove(moveInt move);
 void printMoveList(moves* moveList);
-void addMove(moves* moveList, moveInt move, int bonus = 0);
+
 
 static inline void orderedInsert(moves *moveList, moveInt move);
-const int castlingRights[64] = {
+const char castlingRights[64] = {
      7, 15, 15, 15,  3, 15, 15, 11,
     15, 15, 15, 15, 15, 15, 15, 15,
     15, 15, 15, 15, 15, 15, 15, 15,

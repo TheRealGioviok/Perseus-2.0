@@ -338,3 +338,6 @@ ASALocalRun/
 
 # BeatPulse healthcheck temp database
 healthchecksdb
+/Perseus 2/pestoEval.h
+/Perseus 2/pestoEval.cpp
+/Perseus 2/perseus2.zip

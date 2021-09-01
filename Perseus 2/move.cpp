@@ -36,36 +36,4 @@ void printMoveList(moves* moveList) {
 	}
 }
 
-void addMove(moves* moveList, moveInt move, int bonus ) {
-	++moveList->count;
-	if (pvTable[0][ply] == move) {
-		move |= (0xff000000);
-		moveList->m[moveList->count] = move;
-		++moveList->count;
-		return;
-	}
-	else if (killerMoves[0][ply] == move) {
-		move |= (0x64000000);
-		moveList->m[moveList->count] = move;
-		++moveList->count;
-		return;
-	}
-	else if (killerMoves[1][ply] == move) {
-		move |= (0x63000000);
-		moveList->m[moveList->count] = move;
-		++moveList->count;
-		return;
-	}
-	else if(!isCapture(move)){
-		#define centerBonus 10 //10 > 7 > 2 > 16
-#define centerBonus 10 //10 > 7 > 2 > 16
-		bonus += historyMoves[getMovePiece(move)][getMoveTarget(move)];
-		//int s = getMoveSource(move);
-		bonus += centerBonusTable10[getMoveTarget(move)];
-	    bonus >>= 3;
-	}
-	
-	move |= (bonus << 24);
-	moveList->m[moveList->count] = move;
-	
-}
+

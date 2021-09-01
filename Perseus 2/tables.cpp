@@ -585,7 +585,7 @@ U64 castleKeys[16];
 //random side key
 U64 sideKeys;
 //hashTable
-extern tt*hashTable;
+extern tt* hashTable;
 
 void initHashKeys() {
 	//seed
@@ -675,8 +675,11 @@ inline void writeHashEntry(int key, int score, int depth, moveInt move, int hash
 	unsigned int target = key & (hashSize - 1);
 	tt* hash_entry = &hashTable[target];
 
-	if (depth < hash_entry->depth) return;
-
+#if true
+	if (depth < hash_entry->depth || (depth < hash_entry->depth && hash_entry->flags != hashALPHA && hashFlag == hashALPHA)) return;
+#else
+	if (depth < hash_entry->depth || (depth < hash_entry->depth + 1 && hash_entry->flags != hashALPHA && hashFlag == hashALPHA)) return;
+#endif
 	if (score < -mateScore)score -= ply;
 	if (score >  mateScore)score += ply;
 

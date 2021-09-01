@@ -5,7 +5,7 @@
 #include <windows.h>
 
 moveInt killerMoves[2][maxPly] = { {0} };
-moveInt historyMoves[12][64] = { {0	} };
+int historyMoves[12][64] = { {0	} };
 moveInt counterMoves[64][64] = { {0} };
 U64 repetitionTable[128] = { 0 };
 int repetitionIndex = 0;
@@ -51,11 +51,12 @@ inline unsigned long long perftDriver(int depth, Game *game) {
 inline int Game::eval() {
 #define pesto true
 #if pesto
-	return (int)(1.55*pestoEval(&pos) + 0.45*evaluate(&pos))/2;
+	return pestoEval(&pos);
+	//return (int)(1.55*pestoEval(&pos) + 0.45*evaluate(&pos))/2;
 	return evaluate(&pos);
 #endif
 }
-#define VALWINDOW 12
+#define VALWINDOW 20
 void Game::searchPosition(int depth) {
 
 	int score = 0;
@@ -67,8 +68,9 @@ void Game::searchPosition(int depth) {
 	memset(pvTable, 0, sizeof(pvTable));
 	memset(pvLen, 0, sizeof(pvLen));
 	memset(historyMoves, 0, sizeof(historyMoves));
-	
-	for (int c = 1; c <= depth; c += 1) {
+	memset(counterMoves, 0, sizeof(counterMoves));
+
+	for (int c = 2; c <= depth; c += 1) {
 		//if (stopped == true)break;
 		nodes = 0;
 		//enable followPv
@@ -81,7 +83,7 @@ void Game::searchPosition(int depth) {
 		score = negaMax(alpha, beta, c);
 
 		if (alpha != -50000 && beta != 50000) {
-			for (int i = 4; i < 256; i*=2) {
+			for (int i = 4; i < 16; i*=2) {
 				if (score <= alpha) alpha -= VALWINDOW * i;
 				else if (score >= beta) beta += VALWINDOW * i;
 				else { break; }
@@ -114,7 +116,7 @@ void Game::searchPosition(int depth) {
 			historyMoves[getMovePiece(pvTable[0][i])][getMoveTarget(pvTable[0][i])] += c + 1;
 			std::cout << getMoveString(pvTable[0][i]) << " ";
 		}
-		std::cout << " speed "<< (nodes / (time2 - timer + 1)) << "kN/S\n";
+		std::cout << " speed "<< (nodes / (time2 - timer + 1)) << "kN/S"<<std::endl;
 		if (abs(score) > 48000 && c >= 8)break;
 		//if (c + 2 > depth && nodes < 1000000)depth += 2;
 	}
@@ -142,7 +144,6 @@ inline bool Game::isRepetition() {
 }
 
 inline int Game::quiescence(int alpha, int beta) {
-
 	
 	//if ((nodes & 2047) == 0) communicate();
 	++nodes;
@@ -153,9 +154,6 @@ inline int Game::quiescence(int alpha, int beta) {
 	if (ply > maxPly - 1) {
 		return eeval;
 	}
-
-
-	
 
 	//fail hard beta
 	if (eeval >= beta)return beta;
@@ -172,20 +170,20 @@ inline int Game::quiescence(int alpha, int beta) {
 	if (eeval > alpha)alpha = eeval;
 	moves* moveList = new moves;
 	generateCaptures(moveList);
-	Position* save = new Position;
-	*save = pos;
+	Position save = pos;
 	//OTTIMIZZAZIONE : PREV POS IS THE SAME THROUGHT THE WHOLE FOR CYCLE, MAYBE NOT SAVING IN MAKEMOVE?
 	for (int i = 0; i < moveList->count; ++i) {
 
 		++ply;
 		if (makeMove(moveList->m[i]) == 0) {
 			--ply;
-			pos = *save;
+			pos = save;
 			//if (stopped == true)return 0;
 			continue;
 		}
+
 		int score = -quiescence(-beta, -alpha);
-		pos = *save;
+		pos = save;
 
 		--ply;
 		//if (stopped == true)return 0;
@@ -193,7 +191,7 @@ inline int Game::quiescence(int alpha, int beta) {
 		if (score >= beta) {
 			//fail high
 			//historyMoves[getMovePiece(currMove)][getMoveTarget(currMove)] -= 1;
-			delete save;
+			//delete save;
 			delete moveList;
 			return beta;
 		}
@@ -204,18 +202,18 @@ inline int Game::quiescence(int alpha, int beta) {
 			alpha = eeval;
 		}
 	}
-	delete save;
+	//delete save;
 	delete moveList;
 	return alpha;
 }
 
-inline int Game::negaMax(int alpha, int beta, int depth, bool pv, int nulled) {
+inline int Game::negaMax(int alpha, int beta, int depth, bool pv, double nulled) {
 	//if ((nodes & 2047) == 0) communicate();
 	if (ply && isRepetition())return 0;
 
 	int hashFlag = hashALPHA;
 	int score;
-
+	if (nulled > 0)nulled -= 0.5;
 
 
 	bool pvNode = (beta - alpha) > 1;
@@ -227,7 +225,7 @@ inline int Game::negaMax(int alpha, int beta, int depth, bool pv, int nulled) {
 		return eval();
 	}
 	pvLen[ply] = ply;
-	if (depth == 0)return quiescence(alpha,beta);
+	if (depth <= 0)return quiescence(alpha,beta);
 
 	//remove for spEEd
 	
@@ -239,15 +237,27 @@ inline int Game::negaMax(int alpha, int beta, int depth, bool pv, int nulled) {
 	if (inCheck) ++depth;
 	// number of moves searched in a move list
 	int moveSearched = 0;
+
+	// evaluation pruning / static null move pruning
+	int staticEval = eval();
+
 	
-	
+	if (depth < 3 && !pv && !inCheck && abs(beta - 1) > -infinity + 100) {
+		// define evaluation margin
+		int evalMargin = 120 * depth;
+
+		// evaluation margin substracted from static evaluation score fails high
+		if (staticEval - evalMargin >= beta)
+			// evaluation margin substracted from static evaluation score
+			return staticEval - evalMargin;
+	}
+
 	//Null MP
-	
-	if (!pv && nulled<=4 && depth >= 3 && inCheck == 0 && ply) {
+
+	if (!pv && nulled <= 4 && depth >= 3 && inCheck == 0 && ply) {
 		++ply;
 		//++repetitionIndex;
 		//repetitionTable[repetitionIndex] = pos.hashKey;
-
 
 		repetitionIndex++;
 		repetitionTable[repetitionIndex] = pos.hashKey;
@@ -260,34 +270,96 @@ inline int Game::negaMax(int alpha, int beta, int depth, bool pv, int nulled) {
 		int R = 2;
 		R += depth > 3;
 		R += depth > 4;
+		R += depth > 8;
 		R = min(R, 5 - nulled);
-		int sscore = -negaMax( -beta, -beta + 1, depth - 1 - R ,false,nulled+R);
+		int sscore = -negaMax(-beta, -beta + 1, depth - 1 - R, false, nulled + R);
 		--ply;
 		--repetitionIndex;
-		
-
 
 		pos.side ^= 1;
 		pos.enPassant = exPassant;
 		pos.hashKey ^= sideKeys;
 		pos.hashKey ^= enPassantKeys[exPassant];
-		
+
 		//if (stopped == true)return 0;
 		if (sscore >= beta) {
 			return beta;
 			depth -= R;
-			if (depth <= 0)return quiescence(alpha,beta);
+			if (depth <= 0)return quiescence(alpha, beta);
 		}
 	}
 
+	
+
+	
+	// razoring
+	if (!pv && !inCheck && depth <= 3)
+	{
+		// get static eval and add first bonus
+		score = staticEval + 125;
+
+		// define new score
+		int newScore;
+
+		// static evaluation indicates a fail-low node
+		if (score < beta)
+		{
+			// on depth 1
+			if (depth == 1)
+			{
+				// get quiscence score
+				newScore = quiescence(alpha, beta);
+
+				// return quiescence score if it's greater then static evaluation score
+				return (newScore > score) ? newScore : score;
+			}
+
+			// add second bonus to static evaluation
+			score += 175;
+
+			// static evaluation indicates a fail-low node
+			if (score < beta && depth <= 2)
+			{
+				// get quiscence score
+				newScore = quiescence(alpha, beta);
+
+				// quiescence score indicates fail-low node
+				if (newScore < beta)
+					// return quiescence score if it's greater then static evaluation score
+					return (newScore > score) ? newScore : score;
+			}
+		}
+	}
+
+	
+	
+
+
+	
 
 	
 	
 	moves* moveList= new moves;
-	generateMoves(moveList);
-	Position* save = new Position(pos);
+	generateMoves(moveList, inCheck);
+	Position save = pos;
 
 	tt* entry = getEntry(pos.hashKey);
+	//if (entry->flags != hashALPHA) {
+	for (int i = 1; i < moveList->count; ++i) {
+		if (onlyMove(moveList->m[i]) == entry->move) {
+			if (moveList->m[1] > 0xFFFFFFFF00000000) {
+				moveList->m[0] = moveList->m[1];
+				moveList->m[1] = moveList->m[i];
+				moveList->m[i] = 0;
+			}
+			else {
+				moveList->m[0] = moveList->m[i];
+				moveList->m[i] = 0;
+			}
+			break;
+		}
+	}
+	//}
 
 	/*if (entry->key == pos.hashKey) {
 		for (int index = 0; index < moveList->count; index++) {
@@ -364,111 +436,96 @@ inline int Game::negaMax(int alpha, int beta, int depth, bool pv, int nulled) {
 		++repetitionIndex;
 		repetitionTable[repetitionIndex] = pos.hashKey;
 
-		if (makeMove(currMove) == 0) {
-			--ply;
-			--repetitionIndex;
-			pos = *save;
-			//if (stopped == true)return 0;
-			continue;
-		}
-		int score=alpha+1;
+		if (makeMove(currMove)) {
+			int score = alpha + 1;
 
-#define razorLimit 4
-#define razorMargin 300
-		if ( popcount(pos.occupancies[both] > 15)  && depth == 1 && moveSearched > razorLimit && (eval() + razorMargin < beta)) {
-			int newValue = quiescence(alpha, beta);
-			if (newValue < beta) {
-				pos = *save;
-				--ply;
-				--repetitionIndex;
-				delete moveList;
-				delete save;
-
-				return max(newValue, alpha);
-			}
-		}
-		if (moveSearched == 0) score = -negaMax(-beta, -alpha, depth - 1, true, nulled);
-		else {
-			if (moveSearched >= fullDepthMoves && depth >= reductionLimit && okToReduce(currMove) && !inCheck) {
-				if (moveSearched < overReduct) {
-					int badStory = (historyMoves[getMovePiece(currMove)][getMoveTarget(currMove)]) <= depth;
-					//badStory += (historyMoves[getMovePiece(currMove)][getMoveTarget(currMove)]) <= 0;
-					score = -negaMax(-alpha - 1, -alpha, depth - 2 - badStory,false,nulled);
-				}
-				else {
-					int badStory = (historyMoves[getMovePiece(currMove)][getMoveTarget(currMove)]) <= depth;
-					//badStory += (historyMoves[getMovePiece(currMove)][getMoveTarget(currMove)]) <= 0;
-					score = -negaMax(-alpha - 1, -alpha, (int)(depth *0.667)-badStory-1,false,nulled);
-					if (score > alpha) {
+			if (moveSearched == 0) score = -negaMax(-beta, -alpha, depth - 1, true, nulled);
+			else {
+				if (moveSearched >= fullDepthMoves && depth >= reductionLimit && okToReduce(currMove) && !inCheck) {
+					if (moveSearched < overReduct) {
+						bool badStory = (historyMoves[getMovePiece(currMove)][getMoveTarget(currMove)]) <= depth;
+						//badStory += (historyMoves[getMovePiece(currMove)][getMoveTarget(currMove)]) <= 0;
 						score = -negaMax(-alpha - 1, -alpha, depth - 2 - badStory, false, nulled);
 					}
+					else {
+
+						bool badStory = (historyMoves[getMovePiece(currMove)][getMoveTarget(currMove)]) <= depth;
+						//badStory += (historyMoves[getMovePiece(currMove)][getMoveTarget(currMove)]) <= 0;
+						score = -negaMax(-alpha - 1, -alpha, (int)(depth * 0.667) - badStory - 1, false, nulled);
+						if (score > alpha) {
+							score = -negaMax(-alpha - 1, -alpha, depth - 2 - badStory, false, nulled);
+						}
+
+					}
+
 
 				}
-				
-				
+				//else score = alpha + 1;
+
+				if (score > alpha) {
+
+					score = -negaMax(-alpha - 1, -alpha, depth - 1, false, nulled);
+
+					if ((score > alpha) && (score < beta)) score = -negaMax(-beta, -alpha, depth - 1, pv, nulled);
+
+				}
 			}
-			//else score = alpha + 1;
+
+			//score = -negaMax(-beta, -alpha, depth - 1);
+
+			pos = save;
+			//if (stopped == true)return 0;
+			++moveSearched;
+			--ply;
+			--repetitionIndex;
+
+
 
 			if (score > alpha) {
-
-				score = -negaMax(-alpha - 1, -alpha, depth - 1, false, nulled);
-
-				if ((score > alpha) && (score < beta)) score = -negaMax(-beta, -alpha, depth - 1, pv, nulled);
-				
-			}
-		}
-		
-		//score = -negaMax(-beta, -alpha, depth - 1);
-		
-		pos = *save;
-		//if (stopped == true)return 0;
-		++moveSearched;
-		--ply;
-		--repetitionIndex;
-
-		
-		
-		if (score > alpha) {
-			bestMove = currMove;
-			hashFlag = hashEXACT;
-			historyMoves[getMovePiece(currMove)][getMoveTarget(currMove)] += depth;
-			// new node
-			alpha = score;
-			//write to pvtable
-			pvTable[ply][ply] = onlyMove(currMove);
-			//copy move from deeper ply
-			for (int j = ply + 1; j < pvLen[ply + 1]; ++j) {
-				pvTable[ply][j] = pvTable[ply + 1][j];
-			}
-			//adjust PVLen
-			pvLen[ply] = pvLen[ply + 1];
-
-			if (score >= beta) {
-				//fail high
-				if (isCapture(currMove) == 0) {
-					killerMoves[1][ply] = killerMoves[0][ply];
-					killerMoves[0][ply] = currMove;
-
+				bestMove = currMove;
+				hashFlag = hashEXACT;
+				historyMoves[getMovePiece(currMove)][getMoveTarget(currMove)] += depth * depth;
+				// new node
+				alpha = score;
+				//write to pvtable
+				pvTable[ply][ply] = onlyMove(currMove);
+				//copy move from deeper ply
+				for (int j = ply + 1; j < pvLen[ply + 1]; ++j) {
+					pvTable[ply][j] = pvTable[ply + 1][j];
 				}
-				delete save;
-				delete moveList;
-				// store hash entry with the score equal to beta
-				writeHashEntry(pos.hashKey, beta, depth, currMove, hashBETA);
-				return beta;
+				//adjust PVLen
+				pvLen[ply] = pvLen[ply + 1];
+
+				if (score >= beta) {
+					//fail high
+					if (isCapture(currMove) == 0) {
+						killerMoves[1][ply] = killerMoves[0][ply];
+						killerMoves[0][ply] = currMove;
+						//CM history (?)
+						counterMoves[getMoveSource(pos.lastMove)][getMoveTarget(pos.lastMove)] = bestMove;
+					}
+					//delete save;
+					delete moveList;
+					// store hash entry with the score equal to beta
+					writeHashEntry(pos.hashKey, beta, depth, currMove, hashBETA);
+					return beta;
+				}
 			}
 		}
-		//else {
-		//	historyMoves[getMovePiece(moveList->m[i])][getMoveTarget(moveList->m[i])] -= 1;
-		//}
-		
+		else {
+			--ply;
+			--repetitionIndex;
+			//if (stopped == true)return 0;
+			pos = save;
+		}
 	}
 	
-	delete save;
+	//delete save;
 	delete moveList;
 
 	if (moveSearched == 0) {
 		if (inCheck) {
-			writeHashEntry(pos.hashKey, alpha, depth, currMove, hashFlag);
+			writeHashEntry(pos.hashKey, alpha, depth, bestMove, hashFlag);
 			return -mateValue + ply;
 		}
 		else {
@@ -674,13 +731,20 @@ U64 _perftDriver(int depth,Game *game)
 	int i;
 	U64 nodes = 0;
 
+	Position save = game->pos;
+
 	game->generateMoves(move_list);
-	for (i = 0; i < move_list->count; i++) {
+	for (i = 0; i <= move_list->count; i++) {
 		if (game->makeMove(move_list->m[i])) {
-			if (depth == 1) ++nodes;
+			if (depth == 1) {
+				++nodes;
+				//game->print();
+				//getchar();
+			}
+			
 			else nodes += _perftDriver(depth - 1, game);
-			game->prevState();
 		}
+		game->pos = save;
 	}
 	return nodes;
 }
@@ -761,7 +825,7 @@ void Position::wipe() {
 	//reset optional en croissant square to no_square
 	enPassant = no_square;
 
-	//reset castle rights to none
+	//reset rights to none
 	castle = 0;
 }
 void Position::parseFen(const char* fen) {
@@ -909,30 +973,48 @@ inline void Position::operator=(const Position& other) {
 
 inline int Position::whiteCaptureValueAt(int square) {
 	U64 sqBB = squareBB(square);
-	if (bitboards[p] & sqBB) return 10;
-	if (bitboards[n] & sqBB) return 30;
-	if (bitboards[b] & sqBB) return 35;
-	if (bitboards[r] & sqBB) return 50;
-	return 90;
+	if (bitboards[p] & sqBB) return 0x1ffffff;
+	if (bitboards[n] & sqBB) return 0x3ffffff;
+	if (bitboards[b] & sqBB) return 0x4ffffff;
+	if (bitboards[r] & sqBB) return 0x5ffffff;
+	return 0x9ffffff;
 }
 
 inline int Position::blackCaptureValueAt(int square) {
 	U64 sqBB = squareBB(square);
-	if (bitboards[P] & sqBB) return 10;
-	if (bitboards[N] & sqBB) return 30;
-	if (bitboards[B] & sqBB) return 35;
-	if (bitboards[R] & sqBB) return 50;
-	return 90;
+	if (bitboards[P] & sqBB) return 0x1ffffff;
+	if (bitboards[N] & sqBB) return 0x3ffffff;
+	if (bitboards[B] & sqBB) return 0x4ffffff;
+	if (bitboards[R] & sqBB) return 0x5ffffff;
+	return 0x9ffffff;
 }
 
 
+#define kingCaptures   0x6fffff
+#define pawnCaptures   0x5fffff
+#define knightCaptures 0x3fffff
+#define bishopCaptures 0x3fffff
+#define rookCaptures   0x2fffff
+#define queenCaptures  0x1fffff
 
-inline void Position::generateMoves(moves* moveList) {
+#define queenPromotion  0x9fffff
+#define knightPromotion 0x5fffff
+#define rookPromotion   0x4fffff
+#define bishopPromotion 0x3fffff
+
+inline void Position::generateMoves(moves* moveList, bool isCheck) {
 	//reset the moveList
 	moveList->count = 0;
 	U64 notWhite = ~(occupancies[white]);
 	U64 notBlack = ~(occupancies[black]);
 	U64 noneOccupancy = notWhite & notBlack;
+	//unsigned long otherKing;
+	//bitScanForward(&otherKing, bitboards[K + (6 * side)]);
+	//U64 bishopCheckers = getBishopAttacks(otherKing, occupancies[both]) & (noneOccupancy);
+	//U64 rookCheckers = getRookAttacks(otherKing, occupancies[both]) & (noneOccupancy);
+	//U64 knightCheckers = knightAttacks[otherKing] & noneOccupancy;
+	//U64 pawnCheckers = pawnAttacks[1 - side][otherKing] & noneOccupancy;
+	// 
 	//WHITE
 	if (side == white) {
 		for (int piece = P; piece <= K; ++piece) {
@@ -958,10 +1040,10 @@ inline void Position::generateMoves(moves* moveList) {
 						}
 						//promotion pushes
 						else {
-							addMove(moveList, encodeMove(sourceSquare, targetSquare, P, Q, 0, 0, 0, 0), 90);
-							addMove(moveList, encodeMove(sourceSquare, targetSquare, P, R, 0, 0, 0, 0), 50);
-							addMove(moveList, encodeMove(sourceSquare, targetSquare, P, N, 0, 0, 0, 0), 40);
-							addMove(moveList, encodeMove(sourceSquare, targetSquare, P, B, 0, 0, 0, 0), 30);
+							addMove(moveList, encodeMove(sourceSquare, targetSquare, P, Q, 0, 0, 0, 0), queenPromotion);
+							addMove(moveList, encodeMove(sourceSquare, targetSquare, P, R, 0, 0, 0, 0), knightPromotion);
+							addMove(moveList, encodeMove(sourceSquare, targetSquare, P, N, 0, 0, 0, 0), rookPromotion);
+							addMove(moveList, encodeMove(sourceSquare, targetSquare, P, B, 0, 0, 0, 0), bishopPromotion);
 						}
 					}
 
@@ -972,14 +1054,14 @@ inline void Position::generateMoves(moves* moveList) {
 						bitScanForward(&targetSquare, attacks);
 						//pawn capture promotion
 						if (targetSquare > h8) {
-							addMove(moveList, encodeMove(sourceSquare, targetSquare, P, 0, 1, 0, 0, 0), 100 + whiteCaptureValueAt(targetSquare));
+							addMove(moveList, encodeMove(sourceSquare, targetSquare, P, 0, 1, 0, 0, 0), whiteCaptureValueAt(targetSquare) + pawnCaptures);
 						}
 						//normal pawn capture
 						else {
-							addMove(moveList, encodeMove(sourceSquare, targetSquare, P, Q, 1, 0, 0, 0), 100 + whiteCaptureValueAt(targetSquare) + 90);
-							addMove(moveList, encodeMove(sourceSquare, targetSquare, P, R, 1, 0, 0, 0), 100 + whiteCaptureValueAt(targetSquare) + 50);
-							addMove(moveList, encodeMove(sourceSquare, targetSquare, P, N, 1, 0, 0, 0), 100 + whiteCaptureValueAt(targetSquare) + 40);
-							addMove(moveList, encodeMove(sourceSquare, targetSquare, P, B, 1, 0, 0, 0), 100 + whiteCaptureValueAt(targetSquare) + 30);
+							addMove(moveList, encodeMove(sourceSquare, targetSquare, P, Q, 1, 0, 0, 0), whiteCaptureValueAt(targetSquare) + queenPromotion + pawnCaptures);
+							addMove(moveList, encodeMove(sourceSquare, targetSquare, P, N, 1, 0, 0, 0), whiteCaptureValueAt(targetSquare) + knightPromotion + pawnCaptures);
+							addMove(moveList, encodeMove(sourceSquare, targetSquare, P, R, 1, 0, 0, 0), whiteCaptureValueAt(targetSquare) + rookPromotion + pawnCaptures);
+							addMove(moveList, encodeMove(sourceSquare, targetSquare, P, B, 1, 0, 0, 0), whiteCaptureValueAt(targetSquare) + bishopPromotion + pawnCaptures);
 						}
 						clearBit(attacks, targetSquare); //clears analyzed attack
 					}
@@ -989,7 +1071,7 @@ inline void Position::generateMoves(moves* moveList) {
 						//if available, check with capture mask
 						if (pawnAttacks[white][sourceSquare] & squareBB(enPassant)) {
 							//add croissant
-							addMove(moveList, encodeMove(sourceSquare, enPassant, P, 0, 1, 0, 1, 0), 111);
+							addMove(moveList, encodeMove(sourceSquare, enPassant, P, 0, 1, 0, 1, 0), 0x1ffff + pawnCaptures);
 						}
 					}
 					clearBit(bitboard, sourceSquare); //clears analyzed pawn
@@ -1011,7 +1093,7 @@ inline void Position::generateMoves(moves* moveList) {
 					if (!testBit(occupancies[both], d1) && !testBit(occupancies[both], c1) && !testBit(occupancies[both], b1)) {
 						//traverse squares and king are not attacked
 						if (!isSquareAttacked(e1, black) && !isSquareAttacked(d1, black) && !isSquareAttacked(c1, black)) {
-							addMove(moveList, encodeMove(e1, c1, K, 0, 0, 0, 0, 1),8);
+							addMove(moveList, encodeMove(e1, c1, K, 0, 0, 0, 0, 1), 8);
 						}
 					}
 				}
@@ -1027,13 +1109,13 @@ inline void Position::generateMoves(moves* moveList) {
 				while (attacks) {
 					bitScanForward(&targetSquare, attacks);
 					//if (isSquareAttacked(targetSquare, black))continue;
-					addMove(moveList, encodeMove(sourceSquare, targetSquare, K, 0, 1, 0, 0, 0), 100 + whiteCaptureValueAt(targetSquare) - 10);					
+					addMove(moveList, encodeMove(sourceSquare, targetSquare, K, 0, 1, 0, 0, 0), whiteCaptureValueAt(targetSquare) + kingCaptures);
 					clearBit(attacks, targetSquare);
 				}
 				while (quiets) {
 					bitScanForward(&targetSquare, quiets);
 					//if (isSquareAttacked(targetSquare, black))continue;
-					addMove(moveList, encodeMove(sourceSquare, targetSquare, K, 0, 1, 0, 0, 0), 0);
+					addMove(moveList, encodeMove(sourceSquare, targetSquare, K, 0, 1, 0, 0, 0), (isCheck * 100));
 					clearBit(quiets, targetSquare);
 				}
 			}
@@ -1050,12 +1132,12 @@ inline void Position::generateMoves(moves* moveList) {
 					//loop over target squares
 					while (attacks) {
 						bitScanForward(&targetSquare, attacks);
-						addMove(moveList, encodeMove(sourceSquare, targetSquare, N, 0, 1, 0, 0, 0), 100 + whiteCaptureValueAt(targetSquare) - 30);
+						addMove(moveList, encodeMove(sourceSquare, targetSquare, N, 0, 1, 0, 0, 0), whiteCaptureValueAt(targetSquare) + knightCaptures);
 						clearBit(attacks, targetSquare);
 					}
 					while (quiets) {
 						bitScanForward(&targetSquare, quiets);
-						addMove(moveList, encodeMove(sourceSquare, targetSquare, N, 0, 0, 0, 0, 0), 0);
+						addMove(moveList, encodeMove(sourceSquare, targetSquare, N, 0, 0, 0, 0, 0), 3 );
 						clearBit(quiets, targetSquare);
 					}
 					clearBit(bitboard, sourceSquare);
@@ -1075,12 +1157,12 @@ inline void Position::generateMoves(moves* moveList) {
 					//loop over target squares
 					while (attacks) {
 						bitScanForward(&targetSquare, attacks);
-						addMove(moveList, encodeMove(sourceSquare, targetSquare, B, 0, 1, 0, 0, 0), 100 + whiteCaptureValueAt(targetSquare) - 30);
+						addMove(moveList, encodeMove(sourceSquare, targetSquare, B, 0, 1, 0, 0, 0), whiteCaptureValueAt(targetSquare) + bishopCaptures);
 						clearBit(attacks, targetSquare);
 					}
 					while (quiets) {
 						bitScanForward(&targetSquare, quiets);
-						addMove(moveList, encodeMove(sourceSquare, targetSquare, B, 0, 0, 0, 0, 0), 0);
+						addMove(moveList, encodeMove(sourceSquare, targetSquare, B, 0, 0, 0, 0, 0), 3 );
 						clearBit(quiets, targetSquare);
 					}
 					clearBit(bitboard, sourceSquare);
@@ -1101,12 +1183,12 @@ inline void Position::generateMoves(moves* moveList) {
 					//loop over target squares
 					while (attacks) {
 						bitScanForward(&targetSquare, attacks);
-						addMove(moveList, encodeMove(sourceSquare, targetSquare, R, 0, 1, 0, 0, 0), 100 + whiteCaptureValueAt(targetSquare) - 50);
+						addMove(moveList, encodeMove(sourceSquare, targetSquare, R, 0, 1, 0, 0, 0), whiteCaptureValueAt(targetSquare) + rookCaptures);
 						clearBit(attacks, targetSquare);
 					}
 					while (quiets) {
 						bitScanForward(&targetSquare, quiets);
-						addMove(moveList, encodeMove(sourceSquare, targetSquare, R, 0, 0, 0, 0, 0), 0);
+						addMove(moveList, encodeMove(sourceSquare, targetSquare, R, 0, 0, 0, 0, 0), 2 );
 						clearBit(quiets, targetSquare);
 					}
 					clearBit(bitboard, sourceSquare);
@@ -1127,12 +1209,12 @@ inline void Position::generateMoves(moves* moveList) {
 					//loop over target squares
 					while (attacks) {
 						bitScanForward(&targetSquare, attacks);
-						addMove(moveList, encodeMove(sourceSquare, targetSquare, Q, 0, 1, 0, 0, 0), 100 + whiteCaptureValueAt(targetSquare) - 90);
+						addMove(moveList, encodeMove(sourceSquare, targetSquare, Q, 0, 1, 0, 0, 0), whiteCaptureValueAt(targetSquare) + queenCaptures);
 						clearBit(attacks, targetSquare);
 					}
 					while (quiets) {
 						bitScanForward(&targetSquare, quiets);
-						addMove(moveList, encodeMove(sourceSquare, targetSquare, Q, 0, 0, 0, 0, 0), 0);
+						addMove(moveList, encodeMove(sourceSquare, targetSquare, Q, 0, 0, 0, 0, 0), 1);
 						clearBit(quiets, targetSquare);
 					}
 					clearBit(bitboard, sourceSquare);
@@ -1165,10 +1247,10 @@ inline void Position::generateMoves(moves* moveList) {
 						}
 						//promotion pushes
 						else {
-							addMove(moveList, encodeMove(sourceSquare, targetSquare, p, q, 0, 0, 0, 0), 90);
-							addMove(moveList, encodeMove(sourceSquare, targetSquare, p, r, 0, 0, 0, 0), 50);
-							addMove(moveList, encodeMove(sourceSquare, targetSquare, p, n, 0, 0, 0, 0), 40);
-							addMove(moveList, encodeMove(sourceSquare, targetSquare, p, b, 0, 0, 0, 0), 30);
+							addMove(moveList, encodeMove(sourceSquare, targetSquare, p, q, 0, 0, 0, 0), queenPromotion);
+							addMove(moveList, encodeMove(sourceSquare, targetSquare, p, n, 0, 0, 0, 0), knightPromotion);
+							addMove(moveList, encodeMove(sourceSquare, targetSquare, p, r, 0, 0, 0, 0), rookPromotion);
+							addMove(moveList, encodeMove(sourceSquare, targetSquare, p, b, 0, 0, 0, 0), bishopPromotion);
 							
 						}
 					}
@@ -1180,14 +1262,14 @@ inline void Position::generateMoves(moves* moveList) {
 						bitScanForward(&targetSquare, attacks);
 						//pawn capture
 						if (targetSquare < a1) {
-							addMove(moveList, encodeMove(sourceSquare, targetSquare, p, 0, 1, 0, 0, 0), 100 + blackCaptureValueAt(targetSquare));
+							addMove(moveList, encodeMove(sourceSquare, targetSquare, p, 0, 1, 0, 0, 0), blackCaptureValueAt(targetSquare) + pawnCaptures);
 						}
 						//promotion pawn capture
 						else {
-							addMove(moveList, encodeMove(sourceSquare, targetSquare, p, q, 1, 0, 0, 0), 100 + blackCaptureValueAt(targetSquare) + 90);
-							addMove(moveList, encodeMove(sourceSquare, targetSquare, p, r, 1, 0, 0, 0), 100 + blackCaptureValueAt(targetSquare) + 50);
-							addMove(moveList, encodeMove(sourceSquare, targetSquare, p, n, 1, 0, 0, 0), 100 + blackCaptureValueAt(targetSquare) + 40);
-							addMove(moveList, encodeMove(sourceSquare, targetSquare, p, b, 1, 0, 0, 0), 100 + blackCaptureValueAt(targetSquare) + 30);
+							addMove(moveList, encodeMove(sourceSquare, targetSquare, p, q, 1, 0, 0, 0), blackCaptureValueAt(targetSquare) + queenPromotion + pawnCaptures);
+							addMove(moveList, encodeMove(sourceSquare, targetSquare, p, n, 1, 0, 0, 0), blackCaptureValueAt(targetSquare) + knightPromotion + pawnCaptures);
+							addMove(moveList, encodeMove(sourceSquare, targetSquare, p, r, 1, 0, 0, 0), blackCaptureValueAt(targetSquare) + rookPromotion + pawnCaptures);
+							addMove(moveList, encodeMove(sourceSquare, targetSquare, p, b, 1, 0, 0, 0), blackCaptureValueAt(targetSquare) + bishopPromotion + pawnCaptures);
 						}
 						clearBit(attacks, targetSquare); //clears analyzed attack
 					}
@@ -1197,7 +1279,7 @@ inline void Position::generateMoves(moves* moveList) {
 						//if available, check with capture mask
 						if (pawnAttacks[black][sourceSquare] & squareBB(enPassant)) {
 							//add croissant
-							addMove(moveList, encodeMove(sourceSquare, enPassant, p, 0, 1, 0, 1, 0), 111);
+							addMove(moveList, encodeMove(sourceSquare, enPassant, p, 0, 1, 0, 1, 0), 0x1ffff + pawnCaptures);
 						}
 					}
 					clearBit(bitboard, sourceSquare); //clears analyzed pawn
@@ -1235,13 +1317,13 @@ inline void Position::generateMoves(moves* moveList) {
 				while (attacks) {
 					bitScanForward(&targetSquare, attacks);
 					//if (isSquareAttacked(targetSquare, black))continue;
-					addMove(moveList, encodeMove(sourceSquare, targetSquare, k, 0, 1, 0, 0, 0), 100 + blackCaptureValueAt(targetSquare) - 10);
+					addMove(moveList, encodeMove(sourceSquare, targetSquare, k, 0, 1, 0, 0, 0), blackCaptureValueAt(targetSquare) + kingCaptures);
 					clearBit(attacks, targetSquare);
 				}
 				while (quiets) {
 					bitScanForward(&targetSquare, quiets);
 					//if (isSquareAttacked(targetSquare, black))continue;
-					addMove(moveList, encodeMove(sourceSquare, targetSquare, k, 0, 1, 0, 0, 0), 0);
+					addMove(moveList, encodeMove(sourceSquare, targetSquare, k, 0, 1, 0, 0, 0), (isCheck * 100));
 					clearBit(quiets, targetSquare);
 				}
 			}
@@ -1259,12 +1341,12 @@ inline void Position::generateMoves(moves* moveList) {
 					//loop over target squares
 					while (attacks) {
 						bitScanForward(&targetSquare, attacks);
-						addMove(moveList, encodeMove(sourceSquare, targetSquare, n, 0, 1, 0, 0, 0), 100 + blackCaptureValueAt(targetSquare) - 30);
+						addMove(moveList, encodeMove(sourceSquare, targetSquare, n, 0, 1, 0, 0, 0), blackCaptureValueAt(targetSquare) + knightCaptures);
 						clearBit(attacks, targetSquare);
 					}
 					while (quiets) {
 						bitScanForward(&targetSquare, quiets);
-						addMove(moveList, encodeMove(sourceSquare, targetSquare, n, 0, 0, 0, 0, 0), 0);
+						addMove(moveList, encodeMove(sourceSquare, targetSquare, n, 0, 0, 0, 0, 0), 3);
 						clearBit(quiets, targetSquare);
 					}
 					clearBit(bitboard, sourceSquare);
@@ -1284,12 +1366,12 @@ inline void Position::generateMoves(moves* moveList) {
 					//loop over target squares
 					while (attacks) {
 						bitScanForward(&targetSquare, attacks);
-						addMove(moveList, encodeMove(sourceSquare, targetSquare, b, 0, 1, 0, 0, 0), 100 + blackCaptureValueAt(targetSquare) - 30);
+						addMove(moveList, encodeMove(sourceSquare, targetSquare, b, 0, 1, 0, 0, 0), blackCaptureValueAt(targetSquare) + bishopCaptures);
 						clearBit(attacks, targetSquare);
 					}
 					while (quiets) {
 						bitScanForward(&targetSquare, quiets);
-						addMove(moveList, encodeMove(sourceSquare, targetSquare, b, 0, 0, 0, 0, 0), 0);
+						addMove(moveList, encodeMove(sourceSquare, targetSquare, b, 0, 0, 0, 0, 0), 3);
 						clearBit(quiets, targetSquare);
 					}
 					clearBit(bitboard, sourceSquare);
@@ -1310,12 +1392,12 @@ inline void Position::generateMoves(moves* moveList) {
 					//loop over target squares
 					while (attacks) {
 						bitScanForward(&targetSquare, attacks);
-						addMove(moveList, encodeMove(sourceSquare, targetSquare, r, 0, 1, 0, 0, 0), 100 + blackCaptureValueAt(targetSquare) - 50);
+						addMove(moveList, encodeMove(sourceSquare, targetSquare, r, 0, 1, 0, 0, 0), blackCaptureValueAt(targetSquare) + rookCaptures);
 						clearBit(attacks, targetSquare);
 					}
 					while (quiets) {
 						bitScanForward(&targetSquare, quiets);
-						addMove(moveList, encodeMove(sourceSquare, targetSquare, r, 0, 0, 0, 0, 0), 0);
+						addMove(moveList, encodeMove(sourceSquare, targetSquare, r, 0, 0, 0, 0, 0), 2);
 						clearBit(quiets, targetSquare);
 					}
 					clearBit(bitboard, sourceSquare);
@@ -1336,12 +1418,12 @@ inline void Position::generateMoves(moves* moveList) {
 					//loop over target squares
 					while (attacks) {
 						bitScanForward(&targetSquare, attacks);
-						addMove(moveList, encodeMove(sourceSquare, targetSquare, q, 0, 1, 0, 0, 0), 100 + blackCaptureValueAt(targetSquare) - 90);
+						addMove(moveList, encodeMove(sourceSquare, targetSquare, q, 0, 1, 0, 0, 0), blackCaptureValueAt(targetSquare) + queenCaptures);
 						clearBit(attacks, targetSquare);
 					}
 					while (quiets) {
 						bitScanForward(&targetSquare, quiets);
-						addMove(moveList, encodeMove(sourceSquare, targetSquare, q, 0, 0, 0, 0, 0), 0);
+						addMove(moveList, encodeMove(sourceSquare, targetSquare, q, 0, 0, 0, 0, 0), 1);
 						clearBit(quiets, targetSquare);
 					}
 					clearBit(bitboard, sourceSquare);
@@ -1379,14 +1461,14 @@ inline void Position::generateCaptures(moves* moveList) {
 						bitScanForward(&targetSquare, attacks);
 						//pawn capture promotion
 						if (targetSquare > h8) {
-							addMove(moveList, encodeMove(sourceSquare, targetSquare, P, 0, 1, 0, 0, 0), 100 + whiteCaptureValueAt(targetSquare));
+							addMove(moveList, encodeMove(sourceSquare, targetSquare, P, 0, 1, 0, 0, 0), pawnCaptures + whiteCaptureValueAt(targetSquare));
 						}
 						//normal pawn capture
 						else {
-							addMove(moveList, encodeMove(sourceSquare, targetSquare, P, Q, 1, 0, 0, 0), 100 + whiteCaptureValueAt(targetSquare) + 90);
-							addMove(moveList, encodeMove(sourceSquare, targetSquare, P, R, 1, 0, 0, 0), 100 + whiteCaptureValueAt(targetSquare) + 50);
-							addMove(moveList, encodeMove(sourceSquare, targetSquare, P, N, 1, 0, 0, 0), 100 + whiteCaptureValueAt(targetSquare) + 40);
-							addMove(moveList, encodeMove(sourceSquare, targetSquare, P, B, 1, 0, 0, 0), 100 + whiteCaptureValueAt(targetSquare) + 30);
+							addMove(moveList, encodeMove(sourceSquare, targetSquare, P, Q, 1, 0, 0, 0), pawnCaptures + whiteCaptureValueAt(targetSquare) + queenPromotion);
+							addMove(moveList, encodeMove(sourceSquare, targetSquare, P, R, 1, 0, 0, 0), pawnCaptures + whiteCaptureValueAt(targetSquare) + rookPromotion);
+							addMove(moveList, encodeMove(sourceSquare, targetSquare, P, N, 1, 0, 0, 0), pawnCaptures + whiteCaptureValueAt(targetSquare) + knightPromotion);
+							addMove(moveList, encodeMove(sourceSquare, targetSquare, P, B, 1, 0, 0, 0), pawnCaptures + whiteCaptureValueAt(targetSquare) + bishopPromotion);
 						}
 						clearBit(attacks, targetSquare); //clears analyzed attack
 					}
@@ -1396,7 +1478,7 @@ inline void Position::generateCaptures(moves* moveList) {
 						//if available, check with capture mask
 						if (pawnAttacks[white][sourceSquare] & squareBB(enPassant)) {
 							//add croissant
-							addMove(moveList, encodeMove(sourceSquare, enPassant, P, 0, 1, 0, 1, 0), 111);
+							addMove(moveList, encodeMove(sourceSquare, enPassant, P, 0, 1, 0, 1, 0), pawnCaptures + 0x1ffff);
 						}
 					}
 					clearBit(bitboard, sourceSquare); //clears analyzed pawn
@@ -1433,7 +1515,7 @@ inline void Position::generateCaptures(moves* moveList) {
 				while (attacks) {
 					bitScanForward(&targetSquare, attacks);
 					//if (isSquareAttacked(targetSquare, black))continue;
-					addMove(moveList, encodeMove(sourceSquare, targetSquare, K, 0, 1, 0, 0, 0), 100 + whiteCaptureValueAt(targetSquare) - 10);
+					addMove(moveList, encodeMove(sourceSquare, targetSquare, K, 0, 1, 0, 0, 0), kingCaptures + whiteCaptureValueAt(targetSquare));
 					clearBit(attacks, targetSquare);
 				}
 			}
@@ -1449,7 +1531,7 @@ inline void Position::generateCaptures(moves* moveList) {
 					//loop over target squares
 					while (attacks) {
 						bitScanForward(&targetSquare, attacks);
-						addMove(moveList, encodeMove(sourceSquare, targetSquare, N, 0, 1, 0, 0, 0), 100 + whiteCaptureValueAt(targetSquare) - 30);
+						addMove(moveList, encodeMove(sourceSquare, targetSquare, N, 0, 1, 0, 0, 0), knightCaptures + whiteCaptureValueAt(targetSquare) );
 						clearBit(attacks, targetSquare);
 					}
 					clearBit(bitboard, sourceSquare);
@@ -1467,7 +1549,7 @@ inline void Position::generateCaptures(moves* moveList) {
 					//loop over target squares
 					while (attacks) {
 						bitScanForward(&targetSquare, attacks);
-						addMove(moveList, encodeMove(sourceSquare, targetSquare, B, 0, 1, 0, 0, 0), 100 + whiteCaptureValueAt(targetSquare) - 30);
+						addMove(moveList, encodeMove(sourceSquare, targetSquare, B, 0, 1, 0, 0, 0), bishopCaptures + whiteCaptureValueAt(targetSquare));
 						clearBit(attacks, targetSquare);
 					}
 					clearBit(bitboard, sourceSquare);
@@ -1485,7 +1567,7 @@ inline void Position::generateCaptures(moves* moveList) {
 					//loop over target squares
 					while (attacks) {
 						bitScanForward(&targetSquare, attacks);
-						addMove(moveList, encodeMove(sourceSquare, targetSquare, R, 0, 1, 0, 0, 0), 100 + whiteCaptureValueAt(targetSquare) - 50);
+						addMove(moveList, encodeMove(sourceSquare, targetSquare, R, 0, 1, 0, 0, 0), rookCaptures + whiteCaptureValueAt(targetSquare) );
 						clearBit(attacks, targetSquare);
 					}
 					clearBit(bitboard, sourceSquare);
@@ -1504,7 +1586,7 @@ inline void Position::generateCaptures(moves* moveList) {
 					//loop over target squares
 					while (attacks) {
 						bitScanForward(&targetSquare, attacks);
-						addMove(moveList, encodeMove(sourceSquare, targetSquare, Q, 0, 1, 0, 0, 0), 100 + whiteCaptureValueAt(targetSquare) - 90);
+						addMove(moveList, encodeMove(sourceSquare, targetSquare, Q, 0, 1, 0, 0, 0), queenCaptures + whiteCaptureValueAt(targetSquare) );
 						clearBit(attacks, targetSquare);
 					}
 					clearBit(bitboard, sourceSquare);
@@ -1531,14 +1613,14 @@ inline void Position::generateCaptures(moves* moveList) {
 						bitScanForward(&targetSquare, attacks);
 						//pawn capture
 						if (targetSquare < a1) {
-							addMove(moveList, encodeMove(sourceSquare, targetSquare, p, 0, 1, 0, 0, 0), 100 + blackCaptureValueAt(targetSquare));
+							addMove(moveList, encodeMove(sourceSquare, targetSquare, p, 0, 1, 0, 0, 0), pawnCaptures + blackCaptureValueAt(targetSquare));
 						}
 						//promotion pawn capture
 						else {
-							addMove(moveList, encodeMove(sourceSquare, targetSquare, p, q, 1, 0, 0, 0), 100 + blackCaptureValueAt(targetSquare) + 90);
-							addMove(moveList, encodeMove(sourceSquare, targetSquare, p, r, 1, 0, 0, 0), 100 + blackCaptureValueAt(targetSquare) + 50);
-							addMove(moveList, encodeMove(sourceSquare, targetSquare, p, n, 1, 0, 0, 0), 100 + blackCaptureValueAt(targetSquare) + 40);
-							addMove(moveList, encodeMove(sourceSquare, targetSquare, p, b, 1, 0, 0, 0), 100 + blackCaptureValueAt(targetSquare) + 30);
+							addMove(moveList, encodeMove(sourceSquare, targetSquare, p, q, 1, 0, 0, 0), pawnCaptures + blackCaptureValueAt(targetSquare) + queenPromotion);
+							addMove(moveList, encodeMove(sourceSquare, targetSquare, p, r, 1, 0, 0, 0), pawnCaptures + blackCaptureValueAt(targetSquare) + rookPromotion);
+							addMove(moveList, encodeMove(sourceSquare, targetSquare, p, n, 1, 0, 0, 0), pawnCaptures + blackCaptureValueAt(targetSquare) + knightPromotion);
+							addMove(moveList, encodeMove(sourceSquare, targetSquare, p, b, 1, 0, 0, 0), pawnCaptures + blackCaptureValueAt(targetSquare) + bishopPromotion);
 						}
 						clearBit(attacks, targetSquare); //clears analyzed attack
 					}
@@ -1548,7 +1630,7 @@ inline void Position::generateCaptures(moves* moveList) {
 						//if available, check with capture mask
 						if (pawnAttacks[black][sourceSquare] & squareBB(enPassant)) {
 							//add croissant
-							addMove(moveList, encodeMove(sourceSquare, enPassant, p, 0, 1, 0, 1, 0), 111);
+							addMove(moveList, encodeMove(sourceSquare, enPassant, p, 0, 1, 0, 1, 0), 0x1ffff + pawnCaptures);
 						}
 					}
 					clearBit(bitboard, sourceSquare); //clears analyzed pawn
@@ -1585,7 +1667,7 @@ inline void Position::generateCaptures(moves* moveList) {
 				while (attacks) {
 					bitScanForward(&targetSquare, attacks);
 					//if (isSquareAttacked(targetSquare, black))continue;
-					addMove(moveList, encodeMove(sourceSquare, targetSquare, k, 0, 1, 0, 0, 0), 100 + blackCaptureValueAt(targetSquare) - 10);
+					addMove(moveList, encodeMove(sourceSquare, targetSquare, k, 0, 1, 0, 0, 0), kingCaptures + blackCaptureValueAt(targetSquare) );
 					clearBit(attacks, targetSquare);
 				}
 			}
@@ -1601,7 +1683,7 @@ inline void Position::generateCaptures(moves* moveList) {
 					//loop over target squares
 					while (attacks) {
 						bitScanForward(&targetSquare, attacks);
-						addMove(moveList, encodeMove(sourceSquare, targetSquare, n, 0, 1, 0, 0, 0), 100 + blackCaptureValueAt(targetSquare) - 30);
+						addMove(moveList, encodeMove(sourceSquare, targetSquare, n, 0, 1, 0, 0, 0), knightCaptures + blackCaptureValueAt(targetSquare));
 						clearBit(attacks, targetSquare);
 					}
 					clearBit(bitboard, sourceSquare);
@@ -1619,7 +1701,7 @@ inline void Position::generateCaptures(moves* moveList) {
 					//loop over target squares
 					while (attacks) {
 						bitScanForward(&targetSquare, attacks);
-						addMove(moveList, encodeMove(sourceSquare, targetSquare, b, 0, 1, 0, 0, 0), 100 + blackCaptureValueAt(targetSquare) - 30);
+						addMove(moveList, encodeMove(sourceSquare, targetSquare, b, 0, 1, 0, 0, 0), bishopCaptures + blackCaptureValueAt(targetSquare));
 						clearBit(attacks, targetSquare);
 					}
 					clearBit(bitboard, sourceSquare);
@@ -1638,7 +1720,7 @@ inline void Position::generateCaptures(moves* moveList) {
 					//loop over target squares
 					while (attacks) {
 						bitScanForward(&targetSquare, attacks);
-						addMove(moveList, encodeMove(sourceSquare, targetSquare, r, 0, 1, 0, 0, 0), 100 + blackCaptureValueAt(targetSquare) - 50);
+						addMove(moveList, encodeMove(sourceSquare, targetSquare, r, 0, 1, 0, 0, 0), rookCaptures + blackCaptureValueAt(targetSquare));
 						clearBit(attacks, targetSquare);
 					}
 					clearBit(bitboard, sourceSquare);
@@ -1657,7 +1739,7 @@ inline void Position::generateCaptures(moves* moveList) {
 					//loop over target squares
 					while (attacks) {
 						bitScanForward(&targetSquare, attacks);
-						addMove(moveList, encodeMove(sourceSquare, targetSquare, q, 0, 1, 0, 0, 0), 100 + blackCaptureValueAt(targetSquare) - 90);
+						addMove(moveList, encodeMove(sourceSquare, targetSquare, q, 0, 1, 0, 0, 0), queenCaptures + blackCaptureValueAt(targetSquare));
 						clearBit(attacks, targetSquare);
 					}
 					clearBit(bitboard, sourceSquare);
@@ -1684,8 +1766,8 @@ inline void Position::newKey() {
 	if (side)hashKey ^= sideKeys;
 }
 
-void Game::generateMoves(moves* moveList) {
-	pos.generateMoves(moveList);
+void Game::generateMoves(moves* moveList, bool isCheck) {
+	pos.generateMoves(moveList,isCheck);
 }
 
 void Game::generateCaptures(moves* moveList) {
@@ -2023,6 +2105,7 @@ inline int Game::makeMove(moveInt move, int flags) {
 		//handling croissants
 		if (getEnPassantFlag(move)) {
 			(pos.side) ? clearBit(pos.bitboards[P], target - 8) : clearBit(pos.bitboards[p], target + 8);
+			pos.hashKey ^= (pos.side) ? pieceKeys[P][target - 8] : pieceKeys[p][target + 8];
 		}
 
 		//remove enpassant (?)
@@ -2061,16 +2144,16 @@ inline int Game::makeMove(moveInt move, int flags) {
 				clearBit(pos.bitboards[r], a8);
 				setBit(pos.bitboards[r], d8);
 				//hash castle rook
-				pos.hashKey ^= pieceKeys[R][a8];
-				pos.hashKey ^= pieceKeys[R][d8];
+				pos.hashKey ^= pieceKeys[r][a8];
+				pos.hashKey ^= pieceKeys[r][d8];
 				break;
 
 			case g8:
 				clearBit(pos.bitboards[r], h8);
 				setBit(pos.bitboards[r], f8);
 				//hash castle rook
-				pos.hashKey ^= pieceKeys[R][h8];
-				pos.hashKey ^= pieceKeys[R][f8];
+				pos.hashKey ^= pieceKeys[r][h8];
+				pos.hashKey ^= pieceKeys[r][f8];
 				break;
 			}
 		}
@@ -2184,4 +2267,32 @@ moveInt Game::getLegal(const char* moveString) {
 		if (!strcmp(getMoveString(moveList->m[i]).c_str(), moveString))return moveList->m[i];
 	}
 	return false;
+}
+
+inline void Position::addMove(moves* moveList, moveInt move, int bonus) {
+
+	if (pvTable[0][ply] == move) {
+		move |= (0xfffffff000000);
+	}
+	else if (killerMoves[0][ply] == move) {
+		move |= (0xeffff000000);
+	}
+	else if (killerMoves[1][ply] == move) {
+		move |= (0xdffff000000);
+	}
+	else if (move == counterMoves[getMoveSource(lastMove)][getMoveTarget(lastMove)]) {
+		move |= (0xfffff000000);
+	}
+	else {
+#define centerBonus 10 //10 > 7 > 2 > 16
+		bonus += historyMoves[getMovePiece(move)][getMoveTarget(move)]>>1;
+		bonus += centerBonusTable10[getMoveTarget(move)];
+		
+		move |= ((U64)bonus << 24);
+	}
+
+	moveList->m[moveList->count] = move;
+	++moveList->count;
+
+
 }

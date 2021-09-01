@@ -1,31 +1,43 @@
 // Perseus 2.cpp : Questo file contiene la funzione 'main', in cui inizia e termina l'esecuzione del programma.
 //
 #include <iostream>
-#define debug false;
+#define debug false
 #include "chessBoard.h"
 #include "uci.h"
 #include "evaluation.h"
 
+#include <atomic>
 
-tt* hashTable;
+tt * hashTable;
 
 int main()
 {
-    //init tables
-    initAll();
-    //uci Loop
-    hashTable = new tt[hashSize];
-    for (int i = 0; i < hashSize; i++) {
-        hashTable[i] = tt();
-    }
-    wipeTT();
-    if (false){
-        Position pos();
+    
+    if (false) {
+        initAll();
+        Game g(startPosition);
         
-        
+        for (int i = 1; i < 8; i++) {
+            perftDriver(i, "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10 ");
+        }
+
+
+        moves* moveList = new moves();
+        g.generateMoves(moveList);
+        printMoveList(moveList);
+
         return 0;
     }
+
     else {
+        //init tables
+        initAll();
+        //uci Loop
+        hashTable = new tt[hashSize];
+        for (int i = 0; i < hashSize; i++) {
+            hashTable[i] = tt();
+        }
+        wipeTT();
         uciLoop();
     }
     // terminating succesfully

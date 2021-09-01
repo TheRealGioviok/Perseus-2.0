@@ -57,15 +57,15 @@ const int centerBonusTable10[64] = { 0, 10, 20, 30, 30, 20, 10, 0,
 #define hashEXACT 0
 #define hashALPHA 1
 #define hashBETA 2
-#define hashSize 0x20000000
+#define hashSize 0x40000000
 
 
 struct tt {
-	int key = 0ULL;
+	int key = 0;
 	char depth = 0;
 	char flags = 0;
 	int score = 0;
-	moveInt move = 0;
+	int move = 0;
 	inline void wipe();
 };
 
@@ -81,6 +81,8 @@ const U64 IsolatedG = NOTFILE_F & NOTFILE_H;
 const U64 IsolatedH = NOTFILE_G;
 
 const U64 files[8] = { FILE_A, FILE_B, FILE_C, FILE_D, FILE_E, FILE_F, FILE_G };
+const U64 ranks[8] = { RANK_1, RANK_2, RANK_3, RANK_4, RANK_5, RANK_6, RANK_7 };
+const U64 isolated[8] = { IsolatedA, IsolatedB, IsolatedC, IsolatedD, IsolatedE, IsolatedF, IsolatedG, IsolatedH };
 
 extern U64 pawnAttacks[2][64];
 extern U64 knightAttacks[64];
