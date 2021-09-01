@@ -218,13 +218,13 @@ int pestoEval(Position* pos) {
     bool isEndGame = false;
     char endGame = 0;
 
-    if (popcount(pos->occupancies[11]) == 1) {
+    if (popcount(pos->occupancies[black]) == 1) {
         isEndGame = true;
 
         endGame = 1; //White winning
     }
 
-    if (popcount(pos->occupancies[5]) == 1) {
+    if (popcount(pos->occupancies[white]) == 1) {
         isEndGame = true;
 
         if (endGame)return 0; //K v K
@@ -238,18 +238,18 @@ int pestoEval(Position* pos) {
 
         if (endGame == 1) {
             unsigned long losingKing;
-            bitScanForward(&losingKing, pos->occupancies[11]);
+            bitScanForward(&losingKing, pos->bitboards[11]);
             score += endKingTable[losingKing];
             unsigned long winningKing;
-            bitScanForward(&winningKing, pos->occupancies[5]);
+            bitScanForward(&winningKing, pos->bitboards[5]);
             score += (manhattanDistance[winningKing][losingKing] == 2) * 100;
         }
         else {
             unsigned long losingKing;
-            bitScanForward(&losingKing, pos->occupancies[5]);
+            bitScanForward(&losingKing, pos->bitboards[5]);
             score -= endKingTable[losingKing];
             unsigned long winningKing;
-            bitScanForward(&winningKing, pos->occupancies[11]);
+            bitScanForward(&winningKing, pos->bitboards[11]);
             score += (manhattanDistance[winningKing][losingKing] == 2) * 100;
         }
     }
@@ -292,7 +292,7 @@ int pestoEval(Position* pos) {
         if ((files[sq & 7] & pos->occupancies[black]) == 0) score += (8 - (sq >> 3)) <<2; //passed pawns
         if (popcount(files[sq & 7] & pos->bitboards[0])>1) score -= 25; //doubled pawns
         if ((sq == e2 || sq == d2) && (pos->occupancies[both] & squareBB(sq-8)))score -= 15; //blocked d2/e2 pawn
-        if (isolated[sq & 7] & pos->bitboards[0] <= 1) score -= 10 * (sq >> 3); //isolated backward
+        if (popcount(isolated[sq & 7] & pos->bitboards[0]) <= 1) score -= 10 * (sq >> 3); //isolated backward
 #endif
     }
 
@@ -310,7 +310,7 @@ int pestoEval(Position* pos) {
         if ((files[sq & 7] & pos->occupancies[white]) == 0) score -= (sq >> 3) << 2; //passed pawns
         if (popcount(files[sq & 7] & pos->bitboards[6]) > 1) score += 25; //doubled pawns
         if ((sq == e7 || sq == d7) && (pos->occupancies[both] & squareBB(sq+8)))score += 15; //blocked d2/e2 pawn
-        if (isolated[sq & 7] & pos->bitboards[6] <= 1) score += 10 * (8-(sq >> 3)); //isolated backward
+        if (popcount(isolated[sq & 7] & pos->bitboards[6]) <= 1) score += 10 * (8-(sq >> 3)); //isolated backward
 #endif
     }
 
@@ -326,7 +326,7 @@ int pestoEval(Position* pos) {
         tropismToBlackKing += nkdist[sq][bk];
 #if advancedKnightEval == true
         score -= 8 - whitePawnCount; //best on closed positions
-        score += 5 * (pawnAttacks[black][sq] & pos->bitboards[0] > 0); //defended by pawn
+        score += 5 * ((pawnAttacks[black][sq] & pos->bitboards[0]) > 0); //defended by pawn
 #endif
     }
 
@@ -342,7 +342,7 @@ int pestoEval(Position* pos) {
         tropismToWhiteKing += nkdist[sq][wk];
 #if advancedKnightEval == true
         score += 8 - whitePawnCount; //best on closed positions
-        score -= 5 * (pawnAttacks[white][sq] & pos->bitboards[6] > 0); //defended by pawn
+        score -= 5 * ((pawnAttacks[white][sq] & pos->bitboards[6]) > 0); //defended by pawn
 #endif
     }
 
@@ -357,7 +357,7 @@ int pestoEval(Position* pos) {
         whiteMat += 365;
         tropismToBlackKing += kbdist[sq][bk];
 #if advancedBishopEval == true
-        if ((pos->occupancies[5] & squareBB(sq + 8)) && (sq == g2 || sq == b2))score += 7; //fianchetto bonus
+        if ((pos->bitboards[5] & squareBB(sq + 8)) && (sq == g2 || sq == b2))score += 7; //fianchetto bonus
 #endif
     }
 #if advancedBishopEval == true
@@ -375,7 +375,7 @@ int pestoEval(Position* pos) {
         blackMat += 365;
         tropismToWhiteKing += kbdist[sq][wk];
 #if advancedBishopEval == true
-        if ((pos->occupancies[11] & squareBB(sq - 8)) && (sq == g7 || sq == b7))score -= 7; //fianchetto bonus
+        if ((pos->bitboards[11] & squareBB(sq - 8)) && (sq == g7 || sq == b7))score -= 7; //fianchetto bonus
 #endif
     }
 #if advancedBishopEval == true

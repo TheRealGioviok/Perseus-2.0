@@ -113,7 +113,7 @@ void Game::searchPosition(int depth) {
 		
 		
 		for (int i = 0; i < pvLen[0]; ++i) {
-			historyMoves[getMovePiece(pvTable[0][i])][getMoveTarget(pvTable[0][i])] += c + 1;
+			//historyMoves[getMovePiece(pvTable[0][i])][getMoveTarget(pvTable[0][i])] ++;
 			std::cout << getMoveString(pvTable[0][i]) << " ";
 		}
 		std::cout << " speed "<< (nodes / (time2 - timer + 1)) << "kN/S"<<std::endl;
