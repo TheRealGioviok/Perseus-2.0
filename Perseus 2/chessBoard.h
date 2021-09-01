@@ -58,6 +58,7 @@ struct Position {
 	inline int blackCaptureValueAt(int square);
 	inline void newKey();
 	inline void addMove(moves* moveList, moveInt move, int bonus = 0);
+	
 };
 
 void printPosition(Position p);
@@ -91,6 +92,7 @@ public:
 	U64 miniMax(int alpha, int beta, int depth);
 	int negaScout(int alpha, int beta, int depth);
 	inline int quiescence(int alpha,int beta);
+	//inline moveInt IID(int depth = 3);
 	
 };
 

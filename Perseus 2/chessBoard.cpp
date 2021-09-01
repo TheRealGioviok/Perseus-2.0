@@ -269,8 +269,8 @@ inline int Game::negaMax(int alpha, int beta, int depth, bool pv, double nulled)
 		pos.hashKey ^= enPassantKeys[exPassant];
 		int R = 2;
 		R += depth > 3;
-		R += depth > 4;
-		R += depth > 8;
+		R += depth > 5;
+		R += depth > 7;
 		R = min(R, 5 - nulled);
 		int sscore = -negaMax(-beta, -beta + 1, depth - 1 - R, false, nulled + R);
 		--ply;
@@ -1432,9 +1432,37 @@ inline void Position::generateMoves(moves* moveList, bool isCheck) {
 		}
 	}
 
-	std::sort(std::begin(moveList->m), std::begin(moveList->m)+moveList->count, std::greater<int>());
+	std::sort(std::begin(moveList->m), std::begin(moveList->m)+moveList->count, std::greater<U64>());
 }
 
+/*inline moveInt Game::IID(int depth) {
+	//first, we generate a move list
+	moves moveList;
+	generateMoves(&moveList);
+	unsigned char bestMove = 0;
+	int score = -infinity;
+	Position save = pos;
+	for (int i = 0; i < moveList.count; ++i) {
+		++ply;
+		++repetitionIndex;
+		repetitionTable[repetitionIndex] = pos.hashKey;
+		if (makeMove(moveList.m[i])) {
+			int currScore = -negaMax(-infinity, +infinity, depth, true, 0);
+			--ply;
+			--repetitionIndex;
+			if (currScore > score) {
+				bestMove = i;
+				score = currScore;
+			}
+		}
+		else {
+			--ply;
+			--repetitionIndex;
+		}
+		pos = save;
+	}
+	return moveList.m[bestMove];
+}*/
 
 inline void Position::generateCaptures(moves* moveList) {
 	//reset the moveList
@@ -1747,7 +1775,7 @@ inline void Position::generateCaptures(moves* moveList) {
 			}
 		}
 	}
-	std::sort(std::begin(moveList->m),std::begin(moveList->m) + moveList->count, std::greater<int>());
+	std::sort(std::begin(moveList->m),std::begin(moveList->m) + moveList->count, std::greater<U64>());
 }
 
 inline void Position::newKey() {
