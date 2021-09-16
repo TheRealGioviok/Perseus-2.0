@@ -1,21 +1,23 @@
 #include "uci.h"
-#include "stdio.h"
-#include "iostream"
+#include <stdio.h>
+#include <iostream>
 #include <string>
 #include <sstream>
 #include "chessBoard.h"
 #include <io.h>
 #include <Windows.h>
 
-/*flag quit = 0;
+flag quit = 0;
 flag movesToGo = 30;
-flag moveTime = -1;
-flag ucitime = -1;
+U64 moveTime = -1;
+U64 ucitime = -1;
 flag inc = 0;
-flag startTime = 0;
-flag stopTime = 0;
+U64 startTime = 0;
+U64 stopTime = 0;
 flag timeSet = 0;
 flag stopped = 0;
+flag uciModeSet = uciSearch;
+flag moveCount = 0;
 
 int inputWaiting(){
 	static int init = 0, pipe;
@@ -49,7 +51,8 @@ void readInput(){
 	int bytes;
 
 	// GUI/user input
-	char input[256] = "", * endc;
+	char input[256] = "";
+	char *endc;
 
 	// "listen" to STDIN
 	if (inputWaiting())	{
@@ -61,7 +64,6 @@ void readInput(){
 			// read bytes from STDIN
 			bytes = _read(_fileno(stdin), input, 256);
 		}
-
 		// until bytes available
 		while (bytes < 0);
 
@@ -74,8 +76,9 @@ void readInput(){
 		// if input is available
 		if (strlen(input) > 0){
 			// match UCI "quit" command
-			if (!strncmp(input, "quit", 4))
+			if (!strcmp(input, "quit"))
 			{
+				//std::cout << "morte allo spaghetto volante"<<std::endl;
 				// tell engine to terminate exacution    
 				quit = 1;
 			}
@@ -90,17 +93,23 @@ void readInput(){
 }
 
 // a bridge function to interact between search and GUI input
-static void communicate() {
+void communicate() {
 	// if time is up break here
-	if (timeSet == 1 && getTimeMs() > stopTime) {
+	if (uciModeSet == uciTime && getTimeMs() > moveTime) {
 		// tell engine to stop calculating
 		stopped = 1;
 	}
-
 	// read GUI input
 	readInput();
-}*/
+}
 
+U64 calcMoveTime() {
+	//std::cout << "movecount is -> " << moveCount << "\n";
+	moveCount++;
+	//std::cout << "Going to use " << ((timeToUse[moveCount] * ucitime) / 16000) + inc/2 << "ms\n";
+	return (uciTime / timeToUse[moveCount])+ (U64)inc/2; //ucitime is total remaining time for computer
+																		   // inc is increment
+}
 
 
 moveInt parseNormalMove(char* moveString) {
@@ -119,6 +128,7 @@ void parseCommand(std::string command, Game* game) {
 	if (command.find("ucinewgame") != std::string::npos) {
 		game->parseFen(startPosition);
 		game->print();
+		moveCount = 0;
 		wipeTT();
 		return;
 	}
@@ -153,30 +163,80 @@ void parseCommand(std::string command, Game* game) {
 		//position startpos/fen moves ...
 		if (command.find("moves") != std::string::npos) {
 			command = command.substr(6, command.size() - 6);
-			std::cout << "Command is now: " << command << "\n";
+			//std::cout << "Command is now: " << command << "\n";
 			//loop checking for moves
 			std::stringstream ss(command);
 			std::string move;
 			while (ss >> move) {
-				std::cout << "Newmove is now: " << move << "\n";
+				//std::cout << "Newmove is now: " << move << "\n";
 				if (!game->makeMove(game->getLegal(move.c_str()))) {
 					return;
 				}
 			}
 
-			std::cout << "Remaining garbage is " << ss.str() << "\n";
+			//std::cout << "Remaining garbage is " << ss.str() << "\n";
 		}
 		game->print();
 	}
 	//go
 	if (command.find("go") != std::string::npos) {
-		int timer = getTimeMs();
+		U64 timer = getTimeMs();
 		command = command.substr(3, command.size() - 3);
 		//std::cout << "Command is now: " << command << "\n";
 		//init depth
 		int depth = 6;
 		//go depth n (fixed search)
-		if (command.find("depth") != std::string::npos) {
+
+		if (command.find("time") != std::string::npos) {
+			uciModeSet = uciTime;
+			depth = 1000;
+			std::cout << "Time!\n";
+			std::stringstream ss(command);
+			
+			std::string coms[10];
+			std::cout << command << "\n";
+			for (int i = 0; i < 10; i++) {
+				if (ss.good()) {
+					ss >> coms[i];
+				}
+				else {
+					break;
+				}
+			}
+
+			for (int i = 0; i < 10; i+=2) {
+				std::cout<<"evaluating "<<coms[i]<<" : "<<coms[i+1]<<"\n";
+				if (coms[i] == "wtime" && game->pos.side == white) {
+					ucitime = std::stoi(coms[i+1]);
+				}
+				else if (coms[i] == "btime" && game->pos.side == black) {
+					ucitime = std::stoi(coms[i + 1]);
+				}
+				else if (coms[i] == "winc" && game->pos.side == white) {
+					inc = std::stoi(coms[i + 1]);
+				}
+				else if (coms[i] == "binc" && game->pos.side == black) {
+					inc = std::stoi(coms[i + 1]);
+				}
+				else { 
+					break;
+				}
+			}
+			
+			std::cout << "start time is " << getTimeMs();
+			
+			std::cout << "end time will be " << moveTime << "\n";
+
+		}
+
+		else if (command.find("infinite") != std::string::npos) {
+			depth = 1000;
+			std::cout << "Analysis mode enabled\n";
+			uciModeSet = uciInfinite;
+		}
+
+		else if (command.find("depth") != std::string::npos) {
+			uciModeSet = uciSearch;
 			command = command.substr(6, command.size() - 6);
 			//std::cout << "Command is now: " << command << "\n";
 
@@ -194,8 +254,9 @@ void parseCommand(std::string command, Game* game) {
 			std::cout << "Starting perft at depth " << depth << "\n";
 			perftDriver(depth, game);
 		}
+		
 		game->searchPosition(depth);
-		int time2 = getTimeMs();
+		U64 time2 = getTimeMs();
 		//std::cout << "Time elapsed : " << (time2 - timer) << "\n";
 		//std::cout << "Nodes: " << game->nodes << "\n";
 		//std::cout << "Speed: " << (game->nodes / (time2 - timer)) * 1000 << "N/S\n";
@@ -218,9 +279,9 @@ void parseCommand(std::string command, Game* game) {
 			ss >> depth;
 			std::cout << "Starting search at depth " << depth << "\n";
 
-			int timer = getTimeMs();
+			U64 timer = getTimeMs();
 			game->searchPosition(depth);
-			int time2 = getTimeMs();
+			U64 time2 = getTimeMs();
 			std::cout << "Time elapsed : " << (time2 - timer) << "\n";
 			std::cout << "Nodes: " << game->nodes << "\n";
 			std::cout << "Speed: " << (game->nodes / (time2 - timer)) << "kN/S\n";
@@ -253,7 +314,7 @@ void uciLoop() {
 
 	std::string input = "";
 	
-	std::cout << "id name Perseus\nid name Giovanni Maria Manduca\ntransposition table size 0MB\n";
+	std::cout << "id name Perseus\nid author Giovanni Maria Manduca\ntransposition table size 0MB\n";
 
 	//start protocol
 	std::cout << "uciok\n";

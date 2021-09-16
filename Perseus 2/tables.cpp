@@ -301,7 +301,20 @@ void initAll() {
 	initHashKeys();
 	initTropism();
 	init_tables();
+
+	initBBTables();
 	//initMagicNumbers();
+}
+
+U64 squaresAhead[2][64];
+void initBBTables() {
+	//passed pawn tables
+	for (int square = 0; square < 64; square++) {
+		//iterate through squares
+		//file & (ffffffffffffffff<<square)
+		squaresAhead[0][square] = files[square & 7] & (0xfffffffffffffffe << square); //maybe 0xff...fe ???
+		squaresAhead[1][square] = files[square & 7] & (0xfffffffffffffffe >> square);
+	}
 }
 
 #define COL(x) x%8
@@ -587,6 +600,7 @@ U64 sideKeys;
 //hashTable
 extern tt* hashTable;
 
+
 void initHashKeys() {
 	//seed
 	state = 1804289383;
@@ -676,12 +690,14 @@ inline void writeHashEntry(int key, int score, int depth, moveInt move, int hash
 	tt* hash_entry = &hashTable[target];
 
 #if true
-	if (depth < hash_entry->depth || (depth < hash_entry->depth && hash_entry->flags != hashALPHA && hashFlag == hashALPHA)) return;
+	if (depth < hash_entry->depth || (depth == hash_entry->depth && hash_entry->flags != hashALPHA && hashFlag == hashALPHA)) return;
+	//if (depth < hash_entry->depth) return;
+	//if (depth == hash_entry->depth && hash_entry->flags == hashEXACT)return;
 #else
 	if (depth < hash_entry->depth || (depth < hash_entry->depth + 1 && hash_entry->flags != hashALPHA && hashFlag == hashALPHA)) return;
 #endif
-	if (score < -mateScore)score -= ply;
-	if (score >  mateScore)score += ply;
+	score -= ply * (score < -mateScore);
+	score += ply * (score > mateScore);
 
 	
 

@@ -21,17 +21,58 @@ moveInt parseNormalMove(char* moveString);
 
 void parseCommand(std::string, Game* game);
 void uciLoop();
-/*static void communicate();
+void communicate();
 void readInput();
 int inputWaiting();
-
+U64 calcMoveTime();
 
 extern flag quit;
 extern flag movesToGo;
-extern flag moveTime;
-extern flag ucitime;
+extern U64 moveTime;
+extern U64 ucitime;
 extern flag inc;
-extern flag startTime;
-extern flag stopTime;
+extern U64 startTime;
+extern U64 stopTime;
 extern flag timeSet;
-extern flag stopped;*/
+extern flag stopped;
+
+// (n/16000) of time remained
+const U64 timeToUse[] = {
+	40ULL, 40ULL, 40ULL, 40ULL,
+	40ULL, 40ULL, 40ULL, 40ULL,
+	40ULL, 40ULL, 40ULL, 40ULL,
+	40ULL, 39ULL, 38ULL, 37ULL,
+	36ULL, 35ULL, 34ULL, 33ULL,
+	32ULL, 31ULL, 30ULL, 29ULL,
+	28ULL, 27ULL, 26ULL, 25ULL,
+	24ULL, 23ULL, 22ULL, 21ULL,
+	20ULL, 19ULL, 18ULL, 17ULL,
+	16ULL, 15ULL, 14ULL, 13ULL,
+	12ULL, 11ULL, 10ULL, 9ULL,
+	8ULL, 8ULL, 8ULL, 8ULL,
+	8ULL, 8ULL, 8ULL, 8ULL,
+	8ULL, 8ULL, 8ULL, 8ULL,
+	8ULL, 8ULL, 8ULL, 8ULL,
+	8ULL, 8ULL, 8ULL, 8ULL,
+	8ULL, 8ULL, 8ULL, 8ULL,
+	8ULL, 8ULL, 8ULL, 8ULL,
+	8ULL, 8ULL, 8ULL, 8ULL,
+	8ULL, 8ULL, 8ULL, 8ULL,
+	8ULL, 8ULL, 8ULL, 8ULL,
+	8ULL, 8ULL, 8ULL, 8ULL,
+	8ULL, 8ULL, 8ULL, 8ULL,
+	8ULL, 8ULL, 8ULL, 8ULL,
+	8ULL, 8ULL, 8ULL, 8ULL,
+	8ULL, 8ULL, 8ULL, 8ULL,
+	8ULL, 8ULL, 8ULL, 8ULL,
+	8ULL, 8ULL, 8ULL, 8ULL,
+	8ULL, 8ULL, 8ULL, 8ULL,
+	8ULL, 8ULL, 8ULL, 8ULL,
+	8ULL, 8ULL, 8ULL, 8ULL
+};
+
+enum uciMode {
+	uciSearch,
+	uciInfinite,
+	uciTime
+};

@@ -198,15 +198,15 @@ void init_tables() {
 #define advancedRookEval true
 #define advancedQueenEval true
 
+#define mobilityEval true
+
 //const int mg_value[6] = { 82, 337, 365, 477, 1025,  0 };
 int pestoEval(Position* pos) {
-    int mg[2];
-    int eg[2];
-    int gamePhase = 0;
-    int whiteMat = 0;
-    int blackMat = 0;
-
-    
+    U64 occupancies[3];
+    occupancies[0] = pos->bitboards[0] | pos->bitboards[1] | pos->bitboards[2] | pos->bitboards[3] | pos->bitboards[4] | pos->bitboards[5];
+    occupancies[1] = pos->bitboards[6] | pos->bitboards[7] | pos->bitboards[8] | pos->bitboards[9] | pos->bitboards[10] | pos->bitboards[11];
+    occupancies[2] = occupancies[1] | occupancies[0];
+    U64 freeOccupancy = ~occupancies[2];
     //DRAW BY INSUFFICIENT MATERIAL
     double draw = 0;
     for (int i = 0 + (6 * pos->side); i < 6 + (6 * pos->side); ++i) {
@@ -218,13 +218,13 @@ int pestoEval(Position* pos) {
     bool isEndGame = false;
     char endGame = 0;
 
-    if (popcount(pos->occupancies[black]) == 1) {
+    if (popcount(occupancies[black]) == 1) {
         isEndGame = true;
 
         endGame = 1; //White winning
     }
 
-    if (popcount(pos->occupancies[white]) == 1) {
+    if (popcount(occupancies[white]) == 1) {
         isEndGame = true;
 
         if (endGame)return 0; //K v K
@@ -256,12 +256,31 @@ int pestoEval(Position* pos) {
     
     //if K v KP
     
+    int mg[2];
+    int eg[2];
+    int gamePhase = 0;
+    
 
     mg[WHITE] = 0;
     mg[BLACK] = 0;
     eg[WHITE] = 0;
     eg[BLACK] = 0;
 
+    /*
+    
+    WhitePiecesOnWhiteSquare
+    WhitePiecesOnBlackSquare
+    
+    BlackPiecesOnWhiteSquare
+    BlackPiecesOnBlackSquare
+
+    whiteWeaknessOnWhiteSquares = (BlackPiecesOnBlack/blackPieces);
+    if (whiteSquaredBishop){
+    }
+    else{
+        score -= (whiteWeaknessOnWhiteSquares + 1)*(whiteWeaknessOnWhiteSquares + 1);
+    }
+    */
 
 
     /* evaluate each piece */
@@ -278,6 +297,11 @@ int pestoEval(Position* pos) {
     //pawn count
     int whitePawnCount = popcount(pos->bitboards[0]);
     int blackPawnCount = popcount(pos->bitboards[6]);
+    //mat
+    int whiteMat = 0;
+    
+   
+
 
     while (bitboard) {
         unsigned long sq;
@@ -289,13 +313,18 @@ int pestoEval(Position* pos) {
         whiteMat += 82;
         gamePhase += gamephaseInc[0];
 #if advancedPawnEval == true
-        if ((files[sq & 7] & pos->occupancies[black]) == 0) score += (8 - (sq >> 3)) <<2; //passed pawns
-        if (popcount(files[sq & 7] & pos->bitboards[0])>1) score -= 25; //doubled pawns
-        if ((sq == e2 || sq == d2) && (pos->occupancies[both] & squareBB(sq-8)))score -= 15; //blocked d2/e2 pawn
+        if ((squaresAhead[white][sq & 7] & occupancies[black]) == 0) score += (8 - (sq >> 3)) <<3; //passed pawns
+        if ((squaresAhead[white][sq & 7] & pos->bitboards[0])) score -= 45; //doubled pawns
+        if ((sq == e2 || sq == d2) && (occupancies[both] & squareBB(sq-8)))score -= 35; //blocked d2/e2 pawn
         if (popcount(isolated[sq & 7] & pos->bitboards[0]) <= 1) score -= 10 * (sq >> 3); //isolated backward
+        score -= popcount(pawnAttacks[white][sq - 8] & bitboards[p])*4; //indirectly blocked pawns
+        score -= (testBit(occupancies[black], sq) * (sq >> 3) * 20); //blocked pawns
 #endif
+
     }
 
+    //mat
+    int blackMat = 0;
     bitboard = bitboards[6];
     while (bitboard) {
         unsigned long sq;
@@ -307,10 +336,12 @@ int pestoEval(Position* pos) {
         blackMat += 82;
         gamePhase += gamephaseInc[1];
 #if advancedPawnEval == true
-        if ((files[sq & 7] & pos->occupancies[white]) == 0) score -= (sq >> 3) << 2; //passed pawns
-        if (popcount(files[sq & 7] & pos->bitboards[6]) > 1) score += 25; //doubled pawns
-        if ((sq == e7 || sq == d7) && (pos->occupancies[both] & squareBB(sq+8)))score += 15; //blocked d2/e2 pawn
+        if ((squaresAhead[black][sq & 7] & occupancies[white]) == 0) score -= (sq >> 3) << 3; //passed pawns
+        if ((squaresAhead[white][sq & 7] & pos->bitboards[0])) score += 45; //doubled pawns
+        if ((sq == e7 || sq == d7) && (occupancies[both] & squareBB(sq+8)))score += 35; //blocked d7/e7 pawn
         if (popcount(isolated[sq & 7] & pos->bitboards[6]) <= 1) score += 10 * (8-(sq >> 3)); //isolated backward
+        score += popcount(pawnAttacks[black][sq + 8] & bitboards[P]) * 4; //indirectly blocked pawns
+        score += (testBit(occupancies[white], sq) * (8 - (sq >> 3)) * 10); //blocked pawns
 #endif
     }
 
@@ -325,8 +356,14 @@ int pestoEval(Position* pos) {
         whiteMat += 337;
         tropismToBlackKing += nkdist[sq][bk];
 #if advancedKnightEval == true
-        score -= 8 - whitePawnCount; //best on closed positions
-        score += 5 * ((pawnAttacks[black][sq] & pos->bitboards[0]) > 0); //defended by pawn
+        score -= (8 - whitePawnCount)*4; //best on closed positions
+        score += 8 * ((pawnAttacks[black][sq] & pos->bitboards[0]) > 0); //defended by pawn
+#endif
+
+
+#if mobilityEval == true
+        score += 6 * popcount(knightAttacks[sq] & freeOccupancy);
+        score += 2 * popcount(knightAttacks[sq] & occupancies[black]);
 #endif
     }
 
@@ -341,8 +378,12 @@ int pestoEval(Position* pos) {
         blackMat += 337;
         tropismToWhiteKing += nkdist[sq][wk];
 #if advancedKnightEval == true
-        score += 8 - whitePawnCount; //best on closed positions
-        score -= 5 * ((pawnAttacks[white][sq] & pos->bitboards[6]) > 0); //defended by pawn
+        score += (8 - blackPawnCount)*4; //best on closed positions
+        score -= 8 * ((pawnAttacks[white][sq] & pos->bitboards[6]) > 0); //defended by pawn
+#endif
+#if mobilityEval == true
+        score -= 6 * popcount(knightAttacks[sq] & freeOccupancy);
+        score -= 2 * popcount(knightAttacks[sq] & occupancies[white]);
 #endif
     }
 
@@ -357,7 +398,13 @@ int pestoEval(Position* pos) {
         whiteMat += 365;
         tropismToBlackKing += kbdist[sq][bk];
 #if advancedBishopEval == true
-        if ((pos->bitboards[5] & squareBB(sq + 8)) && (sq == g2 || sq == b2))score += 7; //fianchetto bonus
+        if ((pos->bitboards[5] & squareBB(sq + 8)) && (sq == g2 || sq == b2))score += 14; //fianchetto bonus
+        
+#endif
+#if mobilityEval == true
+        U64 attacks = getBishopAttacks(sq, occupancies[both]);
+        score += 8 * popcount(attacks & freeOccupancy);
+        score += 3 * popcount(attacks & occupancies[black]);
 #endif
     }
 #if advancedBishopEval == true
@@ -375,7 +422,13 @@ int pestoEval(Position* pos) {
         blackMat += 365;
         tropismToWhiteKing += kbdist[sq][wk];
 #if advancedBishopEval == true
-        if ((pos->bitboards[11] & squareBB(sq - 8)) && (sq == g7 || sq == b7))score -= 7; //fianchetto bonus
+        if ((pos->bitboards[11] & squareBB(sq - 8)) && (sq == g7 || sq == b7))score -= 14; //fianchetto bonus
+        
+#endif
+#if mobilityEval == true
+        U64 attacks = getBishopAttacks(sq, occupancies[both]);
+        score -= 8 * popcount(attacks & freeOccupancy);
+        score -= 3 * popcount(attacks & occupancies[white]);
 #endif
     }
 #if advancedBishopEval == true
@@ -394,8 +447,15 @@ int pestoEval(Position* pos) {
         gamePhase += gamephaseInc[6];
         tropismToBlackKing += rkdist[sq][bk];
 #if advancedRookEval == true
-        score += popcount(files[sq & 7] & (pos->bitboards[10] | pos->bitboards[11])) * 3;
+        score += popcount(files[sq & 7] & (pos->bitboards[10] | pos->bitboards[11])) * 10;
         score += (popcount(ranks[sq >> 3] & pos->bitboards[3]) >= 2) * 15;
+        score += (!(squaresAhead[white][sq & 7] & pos->bitboards[6])) * 10; //semi-open file bonus
+        score += (!(squaresAhead[white][sq & 7] & occupancies[black])) * 15; //open file bonus
+#endif
+#if mobilityEval == true
+        U64 attacks = getRookAttacks(sq, occupancies[both]);
+        score += 8 * popcount(attacks & freeOccupancy);
+        score += 4 * popcount(attacks & occupancies[black]);
 #endif
     }
 
@@ -411,8 +471,15 @@ int pestoEval(Position* pos) {
         gamePhase += gamephaseInc[7];
         tropismToWhiteKing += rkdist[sq][wk];
 #if advancedRookEval == true
-        score -= popcount(files[sq & 7] & (pos->bitboards[4] | pos->bitboards[5])) * 3;
+        score -= popcount(files[sq & 7] & (pos->bitboards[4] | pos->bitboards[5])) * 10;
         score -= (popcount(ranks[sq >> 3] & pos->bitboards[9]) >= 2) * 15;
+        score -= (!(squaresAhead[black][sq & 7] & pos->bitboards[0])) * 10; //semi-open file bonus
+        score -= (!(squaresAhead[black][sq & 7] & occupancies[white])) * 15; //open file bonus
+#endif
+#if mobilityEval == true
+        U64 attacks = getRookAttacks(sq, occupancies[both]);
+        score -= 8 * popcount(attacks & freeOccupancy);
+        score -= 4 * popcount(attacks & occupancies[white]);
 #endif
     }
 
@@ -428,8 +495,13 @@ int pestoEval(Position* pos) {
         tropismToBlackKing += qkdist[sq][bk];
 #if advancedQueenEval == true
         //bad queen mobility malus
-        int qMob = 8 - popcount(pos->occupancies[both] & kingAttacks[sq]);
-        score -= (qMob * qMob) >> 2 ;
+        int qMob = 8 - popcount(occupancies[both] & kingAttacks[sq]);
+        score -= (qMob * qMob) >> 2;
+#endif
+#if mobilityEval == true
+        U64 attacks = getQueenAttacks(sq, occupancies[both]);
+        score += 5 * popcount(attacks & freeOccupancy);
+        score += 3 * popcount(attacks & occupancies[black]);
 #endif
     }
 
@@ -445,8 +517,13 @@ int pestoEval(Position* pos) {
         tropismToWhiteKing += kbdist[sq][wk];
 #if advancedQueenEval == true
         //bad queen mobility malus
-        int qMob = 8 - popcount(pos->occupancies[both] & kingAttacks[sq]);
+        int qMob = 8 - popcount(occupancies[both] & kingAttacks[sq]);
         score += (qMob * qMob) >> 2;
+#endif
+#if mobilityEval == true
+        U64 attacks = getQueenAttacks(sq, occupancies[both]);
+        score -= 5 * popcount(attacks & freeOccupancy);
+        score -= 3 * popcount(attacks & occupancies[white]);
 #endif
     }
 
@@ -473,8 +550,8 @@ int pestoEval(Position* pos) {
 
     /* tapered eval */
     //TODO: make a pawnShield mask
-    int whiteKingShield = popcount(bitboards[0] & kingAttacks[wk] & ranks[(wk>>3) - 1]) - 3;
-    int blackKingShield = popcount(bitboards[6] & kingAttacks[bk] & ranks[(bk >> 3) + 1]) - 3;
+    int whiteKingShield = ((wk>>3) >0? popcount(bitboards[0] & kingAttacks[wk] & ranks[(wk>>3) - 1]) - 3 : -3);
+    int blackKingShield = ((wk >> 3) <7? popcount(bitboards[6] & kingAttacks[bk] & ranks[(bk >> 3) + 1]) - 3: -3);
 #define INITIAL_PIECE_MATERIAL 4039
     int whiteKingSafety = 2 * ((whiteKingShield - tropismToWhiteKing) * whiteMat) / INITIAL_PIECE_MATERIAL;
     int blackKingSafety = 2 * ((blackKingShield - tropismToBlackKing) * blackMat) / INITIAL_PIECE_MATERIAL;
@@ -535,5 +612,5 @@ int pestoEval(Position* pos) {
     
 
 
-    return (mgScore * mgPhase + egScore * egPhase) / 24 ;
+    return (mgScore * mgPhase + egScore * egPhase) / 24 + score;
 }

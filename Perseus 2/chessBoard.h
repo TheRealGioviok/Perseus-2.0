@@ -3,6 +3,7 @@
 #include "move.h"
 #include <algorithm>
 
+
 #include <stack>
 #define maxPly 64
 
@@ -16,7 +17,7 @@
 
 extern char asciiPieces[13];
 int charPieces(char piece);
-int getTimeMs();
+U64 getTimeMs();
 
 extern moveInt killerMoves[2][maxPly];
 extern int historyMoves[12][64];
@@ -33,7 +34,7 @@ struct Position {
 	//piece bbs
 	U64 bitboards[12] = { 0ULL,0ULL,0ULL,0ULL,0ULL,0ULL,0ULL,0ULL,0ULL,0ULL,0ULL,0ULL };
 	//occ bbs
-	U64 occupancies[3] = { 0ULL,0ULL,0ULL };
+	//U64 occupancies[3] = { 0ULL,0ULL,0ULL };
 	
 	//data
 	signed char side = -1; //so it needs to be initialized
@@ -43,19 +44,20 @@ struct Position {
 	signed char castle = 0;
 	//hash key
 	int hashKey;
-	moveInt lastMove = 0;
+	int lastMove = 0;
 
 	void print();
 	void parseFen(const char* fen);
 	void wipe(); //widePopulation() sembrava troppo brutto
 
 	inline bool isSquareAttacked(unsigned int square, int sideToMove);
-	inline void operator=(const Position& other);
+	//inline void operator=(const Position& other);
 	void printAttackedSquares(int sideToMove);
 	inline void generateMoves(moves* moveList, bool isCheck = false);
 	inline void generateCaptures(moves* moveList);
 	inline int whiteCaptureValueAt(int square);
 	inline int blackCaptureValueAt(int square);
+	
 	inline void newKey();
 	inline void addMove(moves* moveList, moveInt move, int bonus = 0);
 	
@@ -89,10 +91,12 @@ public:
 	inline int eval();
 	inline int makeMove(moveInt move, int flags = allMoves);
 	inline int negaMax(int alpha, int beta, int depth,bool pv=false, double nulled = 0);
+	inline int negaMax2(int alpha, int beta, int depth, bool cutNode);
 	U64 miniMax(int alpha, int beta, int depth);
 	int negaScout(int alpha, int beta, int depth);
+	moveInt IID(moves* moveList, int depth = 3);
 	inline int quiescence(int alpha,int beta);
-	//inline moveInt IID(int depth = 3);
+	
 	
 };
 

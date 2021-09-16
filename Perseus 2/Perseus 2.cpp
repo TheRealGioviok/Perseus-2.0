@@ -5,18 +5,23 @@
 #include "chessBoard.h"
 #include "uci.h"
 #include "evaluation.h"
-
+#include <stdio.h>
 #include <atomic>
 
 tt * hashTable;
 
 int main()
 {
+    //freopen("andrea.txt", "w", stdout); //franciccio was not here
     
     if (false) {
         initAll();
         Game g(startPosition);
-        
+        hashTable = new tt[hashSize];
+        for (int i = 0; i < hashSize; i++) {
+            hashTable[i] = tt();
+        }
+        wipeTT();
         //std::cout << getMoveString(g.IID()) << std::endl;
 
         return 0;

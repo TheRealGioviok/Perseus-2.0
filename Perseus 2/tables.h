@@ -58,7 +58,7 @@ const int centerBonusTable10[64] = { 0, 10, 20, 30, 30, 20, 10, 0,
 #define hashALPHA 1
 #define hashBETA 2
 //MODIFICA QUESTO
-#define hashSize 0x10000000
+#define hashSize 0x40000000
 
 
 struct tt {
@@ -84,6 +84,10 @@ const U64 IsolatedH = NOTFILE_G;
 const U64 files[8] = { FILE_A, FILE_B, FILE_C, FILE_D, FILE_E, FILE_F, FILE_G };
 const U64 ranks[8] = { RANK_1, RANK_2, RANK_3, RANK_4, RANK_5, RANK_6, RANK_7 };
 const U64 isolated[8] = { IsolatedA, IsolatedB, IsolatedC, IsolatedD, IsolatedE, IsolatedF, IsolatedG, IsolatedH };
+const U64 whiteSquares = 0xaa55aa55aa55aa55;
+const U64 blackSquares = 0x55aa55aa55aa55aa;
+const U64 squaresOfColour[2] = { whiteSquares, blackSquares };
+extern U64 squaresAhead[2][64];
 
 extern U64 pawnAttacks[2][64];
 extern U64 knightAttacks[64];
@@ -129,6 +133,7 @@ void initMagicNumbers();
 void initializePawnAttacks();
 void initializeLeaperAttacks();
 void initAll();
+void initBBTables();
 void initTropism();
 
 U64 setOccupancy(int index, __int64 bitsInMask, U64 attackMask);

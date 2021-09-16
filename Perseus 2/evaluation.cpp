@@ -20,7 +20,10 @@ inline int basicEvaluate(Position* pos) {
 int evaluate(Position* pos) {
 	int score = 0;
 	U64* bitboards = pos->bitboards;
-	U64* occupancies = pos->occupancies;
+	U64 occupancies[3];
+	occupancies[0] = bitboards[0] | bitboards[1] | bitboards[2] | bitboards[3] | bitboards[4] | bitboards[5];
+	occupancies[1] = bitboards[6] | bitboards[7] | bitboards[8] | bitboards[9] | bitboards[10] | bitboards[11];
+	occupancies[2] = occupancies[1] | occupancies[0];
 	int wpawns = popcount(bitboards[0]);
 	int bpawns = popcount(bitboards[6]);
 	int colorWeakness = 0;
