@@ -610,6 +610,6 @@ int pestoEval(Position* pos) {
 
     
 
-
+    score += 28 * (1 - 2 * pos->side);
     return (mgScore * mgPhase + egScore * egPhase) / 24 + score;
 }
