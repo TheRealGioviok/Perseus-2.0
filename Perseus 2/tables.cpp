@@ -640,7 +640,7 @@ inline void tt::wipe() {
 }
 
 #define NOENTRY 100000
-inline int readHashEntry(int key, int alpha, int beta, int depth) {
+inline int readHashEntry(U64 key, int alpha, int beta, int depth) {
 	//create a TT instance to point to hash entry
 	
 	unsigned int target = key & (hashSize -1);
@@ -683,7 +683,7 @@ inline int readHashEntry(int key, int alpha, int beta, int depth) {
 	return NOENTRY;
 }
 
-inline void writeHashEntry(int key, int score, int depth, moveInt move, int hashFlag) {
+inline void writeHashEntry(U64 key, int score, int depth, moveInt move, int hashFlag) {
 	// create a TT instance pointer to particular hash entry storing
 	// the scoring data for the current board position if available
 	unsigned int target = key & (hashSize - 1);
@@ -709,7 +709,7 @@ inline void writeHashEntry(int key, int score, int depth, moveInt move, int hash
 	hash_entry->move = move;
 }
 
-inline tt* getEntry(int key) {
+inline tt* getEntry(U64 key) {
 	unsigned int target = key & (hashSize - 1);
 	return &hashTable[target];
 }

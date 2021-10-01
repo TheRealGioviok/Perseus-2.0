@@ -43,7 +43,7 @@ struct Position {
 	// castling
 	signed char castle = 0;
 	//hash key
-	int hashKey;
+	U64 hashKey;
 	int lastMove = 0;
 
 	void print();

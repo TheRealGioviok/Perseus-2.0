@@ -58,11 +58,11 @@ const int centerBonusTable10[64] = { 0, 10, 20, 30, 30, 20, 10, 0,
 #define hashALPHA 1
 #define hashBETA 2
 //MODIFICA QUESTO
-#define hashSize 0x40000000
+#define hashSize 0x1000000
 
 
 struct tt {
-	int key = 0;
+	U64 key = 0;
 	char depth = 0;
 	char flags = 0;
 	int score = 0;
@@ -151,6 +151,6 @@ extern inline U64 getQueenAttacks(int square, U64 occupancy);
 extern inline void wipeTT();
 extern inline void ageTT();
 
-extern inline int readHashEntry(int key, int alpha, int beta, int depth);
-extern inline void writeHashEntry(int key, int score, int depth, moveInt move, int hash_flag);
-extern inline tt* getEntry(int key);
+extern inline int readHashEntry(U64 key, int alpha, int beta, int depth);
+extern inline void writeHashEntry(U64 key, int score, int depth, moveInt move, int hash_flag);
+extern inline tt* getEntry(U64 key);
