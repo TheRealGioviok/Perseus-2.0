@@ -537,7 +537,7 @@ int pestoEval(Position* pos) {
         gamePhase += gamephaseInc[10];
     }
 
-    bitboard = bitboards[10];
+    bitboard = bitboards[11];
     while (bitboard) {
         unsigned long sq;
         bitScanReverse(&sq, bitboard);
@@ -546,7 +546,6 @@ int pestoEval(Position* pos) {
         eg[1] += eg_table[11][sq];
         gamePhase += gamephaseInc[11];
     }
-
 
     /* tapered eval */
     //TODO: make a pawnShield mask

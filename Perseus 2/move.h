@@ -7,6 +7,7 @@
 0001 0000 0000 0000 0000 0000  capture flag			0x100000
 0010 0000 0000 0000 0000 0000  double push flag		0x200000
 0100 0000 0000 0000 0000 0000  enpassant flag		0x400000
+0100 0000 0000 0000 0000 0000  enpassant flag		0x400000
 1000 0000 0000 0000 0000 0000  castling flag		0x800000 
 */
 #include <string>
@@ -22,7 +23,7 @@ typedef unsigned long long moveInt;
     (castling << 23)    \
 
 
-#define okToReduce(move) (isCapture(move)==0 || getPromotion(move)==0 )
+#define okToReduce(move) (getCaptureFlag(move)==0 || getPromotion(move)==0 || getMovePiece(move)%6!=0)
 #define getMoveSource(move)		( move & 0x3f    )
 #define getMoveTarget(move)		((move & 0xfc0   ) >>  6 )
 #define getMovePiece(move)		((move & 0xf000  ) >> 12 )
@@ -38,6 +39,8 @@ typedef unsigned long long moveInt;
 #define isDouble(move)			((move & 0x200000) >> 21)
 #define isEnPassant(move)		((move & 0x400000) >> 22)
 #define isCastle(move)			((move & 0x800000) >> 23)
+
+#define isIrreversible(move)    ((move & 0x100000) || (move & 0x800000) || (getMovePiece(move) % 6 == 0))
 
 struct moves {
 	//moves

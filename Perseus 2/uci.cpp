@@ -133,7 +133,6 @@ void parseCommand(std::string command, Game* game) {
 		return;
 	}
 	if (command.find("position") != std::string::npos) {
-		wipeTT();
 		command = command.substr(9, command.size() - 9);
 		//std::cout << "Command is now: " << command << "\n";
 		//position startpos
@@ -169,15 +168,29 @@ void parseCommand(std::string command, Game* game) {
 			std::string move;
 			while (ss >> move) {
 				//std::cout << "Newmove is now: " << move << "\n";
-				if (!game->makeMove(game->getLegal(move.c_str()))) {
-					return;
-				}
+				moveInt parsedMove = game->getLegal(move.c_str());
+				if (!game->makeMove(parsedMove)) return;
+				if (isIrreversible(parsedMove))repetitionIndex = 0;
+				repetitionTable[repetitionIndex++] = game->pos.hashKey;
 			}
 
 			//std::cout << "Remaining garbage is " << ss.str() << "\n";
 		}
 		game->print();
 	}
+
+	if (command.find("movetime") != std::string::npos) {
+		U64 timer = getTimeMs();
+		uciModeSet = uciTime;
+		int depth = 1000;
+		command = command.substr(8, command.size() - 8);
+		//std::cout << "Command is now: " << command << "\n";
+
+		std::stringstream ss(command);
+		ss >> ucitime;
+		moveTime = ucitime;
+	}
+
 	//go
 	if (command.find("go") != std::string::npos) {
 		U64 timer = getTimeMs();

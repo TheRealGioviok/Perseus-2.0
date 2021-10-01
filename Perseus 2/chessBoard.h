@@ -20,7 +20,7 @@ int charPieces(char piece);
 U64 getTimeMs();
 
 extern moveInt killerMoves[2][maxPly];
-extern int historyMoves[12][64];
+extern int historyMoves[maxPly][12][64];
 extern moveInt counterMoves[64][64];
 extern U64 repetitionTable[128];
 extern int repetitionIndex;
@@ -90,7 +90,7 @@ public:
 	moveInt getLegal(const char* moveString);
 	inline int eval();
 	inline int makeMove(moveInt move, int flags = allMoves);
-	inline int negaMax(int alpha, int beta, int depth,bool pv=false, double nulled = 0);
+	inline int negaMax(int alpha, int beta, int depth, bool pv=true, unsigned char nullMoveCounter = 2);
 	inline int negaMax2(int alpha, int beta, int depth, bool cutNode);
 	U64 miniMax(int alpha, int beta, int depth);
 	int negaScout(int alpha, int beta, int depth);
