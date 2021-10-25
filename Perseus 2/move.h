@@ -39,6 +39,7 @@ typedef unsigned long long moveInt;
 #define isDouble(move)			((move & 0x200000) >> 21)
 #define isEnPassant(move)		((move & 0x400000) >> 22)
 #define isCastle(move)			((move & 0x800000) >> 23)
+#define moveScore(move)         (move>>24)
 
 #define isIrreversible(move)    ((move & 0x100000) || (move & 0x800000) || (getMovePiece(move) % 6 == 0))
 

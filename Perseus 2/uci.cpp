@@ -316,7 +316,7 @@ void parseCommand(std::string command, Game* game) {
 		
 	}
 	
-	
+	std::cout << std::flush;
 }
 
 void uciLoop() {

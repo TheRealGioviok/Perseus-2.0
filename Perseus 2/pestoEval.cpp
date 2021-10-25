@@ -200,6 +200,13 @@ void init_tables() {
 
 #define mobilityEval true
 
+#define knightMobilityNormal 4
+#define knightMobilityAttacked 2
+#define sliderMobilityNormal 4
+#define sliderMobilityAttacked 2
+#define queenMobilityNormal 4
+#define queenMobilityAttacked 2
+
 //const int mg_value[6] = { 82, 337, 365, 477, 1025,  0 };
 int pestoEval(Position* pos) {
     U64 occupancies[3];
@@ -208,51 +215,6 @@ int pestoEval(Position* pos) {
     occupancies[2] = occupancies[1] | occupancies[0];
     U64 freeOccupancy = ~occupancies[2];
     //DRAW BY INSUFFICIENT MATERIAL
-    double draw = 0;
-    for (int i = 0 + (6 * pos->side); i < 6 + (6 * pos->side); ++i) {
-        draw += popcount(pos->bitboards[i])*drawVals[i%6];
-    }
-
-
-    int score = 0; //for end games
-    bool isEndGame = false;
-    char endGame = 0;
-
-    if (popcount(occupancies[black]) == 1) {
-        isEndGame = true;
-
-        endGame = 1; //White winning
-    }
-
-    if (popcount(occupancies[white]) == 1) {
-        isEndGame = true;
-
-        if (endGame)return 0; //K v K
-         endGame = 2; //black winning
-    }
-
-    if (isEndGame) {
-        if (endGame == 0)return 0;
-
-
-
-        if (endGame == 1) {
-            unsigned long losingKing;
-            bitScanForward(&losingKing, pos->bitboards[11]);
-            score += endKingTable[losingKing];
-            unsigned long winningKing;
-            bitScanForward(&winningKing, pos->bitboards[5]);
-            score += (manhattanDistance[winningKing][losingKing] == 2) * 100;
-        }
-        else {
-            unsigned long losingKing;
-            bitScanForward(&losingKing, pos->bitboards[5]);
-            score -= endKingTable[losingKing];
-            unsigned long winningKing;
-            bitScanForward(&winningKing, pos->bitboards[11]);
-            score += (manhattanDistance[winningKing][losingKing] == 2) * 100;
-        }
-    }
     
     //if K v KP
     
@@ -282,7 +244,7 @@ int pestoEval(Position* pos) {
     }
     */
 
-
+    int score = 0;
     /* evaluate each piece */
     U64* bitboards = pos->bitboards;
     unsigned long wk;
@@ -362,8 +324,8 @@ int pestoEval(Position* pos) {
 
 
 #if mobilityEval == true
-        score += 6 * popcount(knightAttacks[sq] & freeOccupancy);
-        score += 2 * popcount(knightAttacks[sq] & occupancies[black]);
+        score += knightMobilityNormal* popcount(knightAttacks[sq] & freeOccupancy);
+        score += knightMobilityAttacked * popcount(knightAttacks[sq] & occupancies[black]);
 #endif
     }
 
@@ -382,8 +344,8 @@ int pestoEval(Position* pos) {
         score -= 8 * ((pawnAttacks[white][sq] & pos->bitboards[6]) > 0); //defended by pawn
 #endif
 #if mobilityEval == true
-        score -= 6 * popcount(knightAttacks[sq] & freeOccupancy);
-        score -= 2 * popcount(knightAttacks[sq] & occupancies[white]);
+        score -= knightMobilityNormal * popcount(knightAttacks[sq] & freeOccupancy);
+        score -= knightMobilityAttacked * popcount(knightAttacks[sq] & occupancies[white]);
 #endif
     }
 
@@ -403,8 +365,8 @@ int pestoEval(Position* pos) {
 #endif
 #if mobilityEval == true
         U64 attacks = getBishopAttacks(sq, occupancies[both]);
-        score += 8 * popcount(attacks & freeOccupancy);
-        score += 3 * popcount(attacks & occupancies[black]);
+        score += sliderMobilityNormal * popcount(attacks & freeOccupancy);
+        score += sliderMobilityAttacked * popcount(attacks & occupancies[black]);
 #endif
     }
 #if advancedBishopEval == true
@@ -427,8 +389,8 @@ int pestoEval(Position* pos) {
 #endif
 #if mobilityEval == true
         U64 attacks = getBishopAttacks(sq, occupancies[both]);
-        score -= 8 * popcount(attacks & freeOccupancy);
-        score -= 3 * popcount(attacks & occupancies[white]);
+        score -= sliderMobilityNormal * popcount(attacks & freeOccupancy);
+        score -= sliderMobilityAttacked * popcount(attacks & occupancies[white]);
 #endif
     }
 #if advancedBishopEval == true
@@ -454,8 +416,8 @@ int pestoEval(Position* pos) {
 #endif
 #if mobilityEval == true
         U64 attacks = getRookAttacks(sq, occupancies[both]);
-        score += 8 * popcount(attacks & freeOccupancy);
-        score += 4 * popcount(attacks & occupancies[black]);
+        score += sliderMobilityNormal * popcount(attacks & freeOccupancy);
+        score += sliderMobilityAttacked * popcount(attacks & occupancies[black]);
 #endif
     }
 
@@ -478,8 +440,8 @@ int pestoEval(Position* pos) {
 #endif
 #if mobilityEval == true
         U64 attacks = getRookAttacks(sq, occupancies[both]);
-        score -= 8 * popcount(attacks & freeOccupancy);
-        score -= 4 * popcount(attacks & occupancies[white]);
+        score -= sliderMobilityNormal * popcount(attacks & freeOccupancy);
+        score -= sliderMobilityAttacked * popcount(attacks & occupancies[white]);
 #endif
     }
 
@@ -500,8 +462,8 @@ int pestoEval(Position* pos) {
 #endif
 #if mobilityEval == true
         U64 attacks = getQueenAttacks(sq, occupancies[both]);
-        score += 5 * popcount(attacks & freeOccupancy);
-        score += 3 * popcount(attacks & occupancies[black]);
+        score += queenMobilityNormal * popcount(attacks & freeOccupancy);
+        score += queenMobilityAttacked * popcount(attacks & occupancies[black]);
 #endif
     }
 
@@ -514,7 +476,7 @@ int pestoEval(Position* pos) {
         eg[1] += eg_table[9][sq];
         gamePhase += gamephaseInc[9];
         blackMat += 1025;
-        tropismToWhiteKing += kbdist[sq][wk];
+        tropismToWhiteKing += qkdist[sq][wk];
 #if advancedQueenEval == true
         //bad queen mobility malus
         int qMob = 8 - popcount(occupancies[both] & kingAttacks[sq]);
@@ -522,8 +484,8 @@ int pestoEval(Position* pos) {
 #endif
 #if mobilityEval == true
         U64 attacks = getQueenAttacks(sq, occupancies[both]);
-        score -= 5 * popcount(attacks & freeOccupancy);
-        score -= 3 * popcount(attacks & occupancies[white]);
+        score -= queenMobilityNormal * popcount(attacks & freeOccupancy);
+        score -= queenMobilityAttacked * popcount(attacks & occupancies[white]);
 #endif
     }
 
@@ -611,5 +573,5 @@ int pestoEval(Position* pos) {
     
 
     score += 28 * (1 - 2 * pos->side);
-    return (mgScore * mgPhase + egScore * egPhase) / 24 + score;
+    return ((100-pos->halfMoves) * ((mgScore * mgPhase + egScore * egPhase) / 24 + score)/100);
 }

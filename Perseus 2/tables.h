@@ -58,7 +58,7 @@ const int centerBonusTable10[64] = { 0, 10, 20, 30, 30, 20, 10, 0,
 #define hashALPHA 1
 #define hashBETA 2
 //MODIFICA QUESTO
-#define hashSize 0x1000000
+#define hashSize 0x2000000
 
 
 struct tt {

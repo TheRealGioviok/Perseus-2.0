@@ -4,10 +4,11 @@
 #include "pestoEval.h"
 #include <windows.h>
 #include "uci.h"
+#include <cassert>
 
 moveInt killerMoves[2][maxPly] = { {0} };
-int historyMoves[maxPly][12][64] = { {0	} };
-moveInt counterMoves[64][64] = { {0} };
+int historyMoves[2][12][64] = { {0	} };
+moveInt counterMoves[2][64][64] = { {0} };
 U64 repetitionTable[128] = { 0 };
 int repetitionIndex = 0;
 
@@ -57,7 +58,7 @@ inline int Game::eval() {
 	return evaluate(&pos);
 #endif
 }
-#define VALWINDOW 50
+#define VALWINDOW 25
 void Game::searchPosition(int depth) {
 
 	
@@ -77,7 +78,7 @@ void Game::searchPosition(int depth) {
 	std::cout << "startTime is " << startTime << "\n";
 	moveTime = startTime + calcMoveTime();
 	std::cout << "End time is" << moveTime << "\n";
-	for (int c = 3; c <= depth; ++c) {
+	for (int c = 1; c <= depth; ++c) {
 		if (stopped == true) {
 			stopped = false;
 			break;
@@ -90,7 +91,7 @@ void Game::searchPosition(int depth) {
 		
 		
 		
-		if (!stopped)score = negaMax(alpha, beta, c);
+		if (!stopped)score = negaMax(alpha, beta, c, true);
 		else goto NEXT;
 
 		if (alpha != -50000 && beta != 50000) {
@@ -394,7 +395,7 @@ inline int Game::negaMax2(int alpha, int beta, int depth, bool cutNode) {
 			else { //cut node: all heuristic allowed
 				int r = 0; //late move reduction factor
 				r += (moveSearched > 1 + 2 * (!cutNode));
-				if(okToReduce(currMove) && !inCheck) r += min(5, (((int)(21.9 * log(ply))) * (15 + 7 * moveSearched) + 534) / 1024);
+				if (okToReduce(currMove) && !inCheck) r += min(5, (((int)(21.9 * log(ply))) * (15 + 7 * moveSearched) + 534) / 1024);
 				r += (historyMoves[ply][getMovePiece(currMove)][getMoveTarget(currMove)]) <= depth;
 				score = -negaMax(-alpha - 1, -alpha, depth - r - 1, true);
 
@@ -417,11 +418,11 @@ inline int Game::negaMax2(int alpha, int beta, int depth, bool cutNode) {
 			if (score > alpha) {
 				bestMove = currMove;
 				hashFlag = hashEXACT;
-				historyMoves[ply][getMovePiece(currMove)][getMoveTarget(currMove)] += depth * depth;
+				historyMoves[pos.side][getMovePiece(currMove)][getMoveTarget(currMove)] += depth * depth;
 				//if(ply)historyMoves[ply-1][getMovePiece(currMove)][getMoveTarget(currMove)] += depth * depth;
-				if(ply>1)historyMoves[ply-2][getMovePiece(currMove)][getMoveTarget(currMove)] += depth * depth;
+				if(ply>1)historyMoves[pos.side][getMovePiece(currMove)][getMoveTarget(currMove)] += depth * depth;
 				//if(ply<maxPly)historyMoves[ply+1][getMovePiece(currMove)][getMoveTarget(currMove)] += depth * depth;
-				if(ply<maxPly-1)historyMoves[ply+2][getMovePiece(currMove)][getMoveTarget(currMove)] += depth * depth;
+				if(ply<maxPly-1)historyMoves[pos.side][getMovePiece(currMove)][getMoveTarget(currMove)] += depth * depth;
 				// new node
 				alpha = score;
 				//write to pvtable
@@ -439,7 +440,7 @@ inline int Game::negaMax2(int alpha, int beta, int depth, bool cutNode) {
 						killerMoves[1][ply] = killerMoves[0][ply];
 						killerMoves[0][ply] = currMove;
 						//CM history (?)
-						counterMoves[getMoveSource(pos.lastMove)][getMoveTarget(pos.lastMove)] = bestMove;
+						counterMoves[pos.side][getMoveSource(pos.lastMove)][getMoveTarget(pos.lastMove)] = bestMove;
 					}
 					//delete save;
 					delete moveList;
@@ -477,321 +478,44 @@ inline int Game::negaMax2(int alpha, int beta, int depth, bool cutNode) {
 }
 
 
+inline int Game::negaMax(int alpha, int beta, int depth, bool nullMovePermitted) {
 
-/*
-inline int Game::negaMax(int alpha, int beta, int depth, bool pv, double nulled) {
-	if ((nodes & 2047) == 0) {
-		communicate();
-		if (stopped)return 0;
+	int matingValue = mateValue - ply;
+	//Mate Distance Pruning, the code taken from chessprogramming wiki
+
+	if (matingValue < beta) {
+		beta = matingValue;
+		if (alpha >= matingValue) return matingValue;
 	}
-	if (ply && isRepetition()) return 0;
-	int hashFlag = hashALPHA;
-	int score;
-	if (!pv && nulled > 0)nulled -= 0.5;
 
+	matingValue = -mateValue + ply;
 
-	//bool pvNode = (beta - alpha) > 1;
-
-	if (!pv && ply && (score = readHashEntry(pos.hashKey, alpha, beta, depth)) != 100000)
-		return score;
-
-	if (ply > maxPly - 1) {
-		return eval();
-	}
-	pvLen[ply] = ply;
-	if (depth <= 0)return quiescence(alpha, beta);
-
-	//remove for spEEd
-
-
-	++nodes;
-	unsigned long kingPos;
-	bitScanForward(&kingPos, (pos.side ? pos.bitboards[k] : pos.bitboards[K]));
-	int inCheck = pos.isSquareAttacked(kingPos, pos.side ^ 1);
-	if (inCheck) {
-		++depth;
-		if (getCaptureFlag(pos.lastMove))++depth;
-	}
-	else {
-
-
-		// evaluation pruning / static null move pruning
-		int staticEval = eval();
-
-
-		if (depth < 3 && !pv && abs(beta - 1) > -infinity + 100) {
-			// define evaluation margin
-			int evalMargin = 120 * depth;
-
-			// evaluation margin substracted from static evaluation score fails high
-			if (staticEval - evalMargin >= beta)
-				// evaluation margin substracted from static evaluation score
-				return staticEval - evalMargin;
-		}
-
-		//Null MP
-		if (!pv && depth >= 3 && ply) {
-			++ply;
-			//++repetitionIndex;
-			//repetitionTable[repetitionIndex] = pos.hashKey;
-
-			repetitionIndex++;
-			repetitionTable[repetitionIndex] = pos.hashKey;
-
-			pos.side ^= 1;
-			int exPassant = pos.enPassant;
-			pos.enPassant = no_square;
-			pos.hashKey ^= sideKeys;
-			pos.hashKey ^= enPassantKeys[exPassant];
-			int R = 2;
-			//R += depth > 3;
-			//R += depth > 5;
-			//R += depth > 7;
-			//R = min(R, 5 - nulled);
-			int sscore = -negaMax(-beta, -beta + 1, depth - 1 - R, false, nulled + R);
-			--ply;
-			--repetitionIndex;
-
-			pos.side ^= 1;
-			pos.enPassant = exPassant;
-			pos.hashKey ^= sideKeys;
-			pos.hashKey ^= enPassantKeys[exPassant];
-
-			//if (stopped == true)return 0;
-			if (sscore >= beta) {
-				return sscore;
-				depth -= R;
-				if (depth <= 0)return quiescence(alpha, beta);
-			}
-		}
-
-		// razoring
-		if (!pv && depth <= 3)
-		{
-			// get static eval and add first bonus
-			score = staticEval + 125;
-
-			// define new score
-			int newScore;
-
-			// static evaluation indicates a fail-low node
-			if (score < beta)
-			{
-				// on depth 1
-				if (depth == 1)
-				{
-					// get quiscence score
-					newScore = quiescence(alpha, beta);
-
-					// return quiescence score if it's greater then static evaluation score
-					return (newScore > score) ? newScore : score;
-				}
-
-				// add second bonus to static evaluation
-				score += 175;
-
-				// static evaluation indicates a fail-low node
-				if (score < beta && depth <= 2)
-				{
-					// get quiscence score
-					newScore = quiescence(alpha, beta);
-
-					// quiescence score indicates fail-low node
-					if (newScore < beta)
-						// return quiescence score if it's greater then static evaluation score
-						return (newScore > score) ? newScore : score;
-				}
-			}
-		}
-
+	if (matingValue > alpha) {
+		alpha = matingValue;
+		if (beta <= matingValue) return matingValue;
 	}
 
 
 
-
-
-	// number of moves searched in a move list
-	int moveSearched = 0;
-
-
-	moves* moveList = new moves;
-	generateMoves(moveList, inCheck);
-	Position save = pos;
-
-	tt* entry = getEntry(pos.hashKey);
-	//if (entry->flags != hashALPHA) {
-	for (int i = 1; i < moveList->count; ++i) {
-		if (onlyMove(moveList->m[i]) == entry->move) {
-			if (moveList->m[1] > 0xFFFFFFFF00000000) {
-
-				moveList->m[0] = moveList->m[1];
-				moveList->m[1] = moveList->m[i];
-				moveList->m[i] = 0;
-			}
-			else {
-				moveList->m[0] = moveList->m[i];
-				moveList->m[i] = 0;
-			}
-			break;
-		}
-	}
-	//IID (?)
-#define useIID true
-#if useIID == true
-	if (depth > 5) {
-		if (moveList->m[0] == 0 && moveList->m[1] < 0xFFFFFFFF00000000) {
-			if (abs(beta - alpha) > 1) moveList->m[0] = IID(moveList, depth / 4 + 2);
-			for (int i = 0; i < moveList->count; ++i) if (onlyMove(moveList->m[i]) == moveList->m[0]) {
-				moveList->m[i] = 0;
-				break;
-			}
-		}
-	}
-#endif
-	
-	//OTTIMIZZAZIONE : PREV POS IS THE SAME THROUGHT THE WHOLE FOR CYCLE, MAYBE NOT SAVING IN MAKEMOVE?
-	moveInt currMove;
-	moveInt bestMove = 0;
-	for (int i = 0; i < moveList->count; ++i) {
-		currMove = onlyMove(moveList->m[i]);
-		//if (currMove == entry->move)continue;
-		++ply;
-		++repetitionIndex;
-		repetitionTable[repetitionIndex] = pos.hashKey;
-
-		if (makeMove(currMove)) {
-			int score = alpha + 1;
-
-			if (moveSearched == 0) score = -negaMax(-beta, -alpha, depth - 1, pv, nulled);
-			else {
-				bool recapture = (getCaptureFlag(pos.lastMove) > 0) * (getCaptureFlag(currMove) > 0);
-				//bool sac = (getCaptureFlag(currMove)>0) * (squareBB(getMoveTarget) & 
-				if(recapture) score = -negaMax(-alpha - 1, -alpha, depth - 1, false, nulled);
-				else if (okToReduce(currMove) && !inCheck) {
-					//if (moveSearched < overReduct) {
-						//bool badStory = (historyMoves[ply][getMovePiece(currMove)][getMoveTarget(currMove)]) <= depth;
-						//badStory += (historyMoves[getMovePiece(currMove)][getMoveTarget(currMove)]) <= 0;
-						score = -negaMax(-alpha - 1, -alpha, depth - 1 - sqrt(log(2*ply*moveSearched* moveList->count)), false, nulled);
-					//}
-					//else {
-
-					//	bool badStory = (historyMoves[ply][getMovePiece(currMove)][getMoveTarget(currMove)]) <= depth;
-						//badStory += (historyMoves[getMovePiece(currMove)][getMoveTarget(currMove)]) <= 0;
-					//	score = -negaMax(-alpha - 1, -alpha, (int)(depth * 0.667) - badStory - 1 - (moveSearched>>4), false, nulled);
-						
-
-					}
-
-				else score = alpha + 1;
-
-				if (score > alpha) {
-
-					score = -negaMax(-alpha - 1, -alpha, depth - 1, false, nulled);
-
-					if ((score > alpha) && (score < beta)) score = -negaMax(-beta, -alpha, depth - 1, pv, nulled);
-
-				}
-			}
-
-			//score = -negaMax(-beta, -alpha, depth - 1);
-
-			pos = save;
-			//if (stopped == true)return 0;
-			++moveSearched;
-			--ply;
-			--repetitionIndex;
-
-
-
-			if (score > alpha) {
-
-				
-				//if (ply)historyMoves[ply - 1][getMovePiece(currMove)][getMoveTarget(currMove)] += depth * depth;
-				if (ply > 1)historyMoves[ply - 2][getMovePiece(currMove)][getMoveTarget(currMove)] += depth * depth;
-				//if (ply < maxPly)historyMoves[ply + 1][getMovePiece(currMove)][getMoveTarget(currMove)] += depth * depth;
-				if (ply < maxPly - 1)historyMoves[ply + 2][getMovePiece(currMove)][getMoveTarget(currMove)] += depth * depth;
-				// new node
-				alpha = score;
-				//write to pvtable
-				pvTable[ply][ply] = onlyMove(currMove);
-				//copy move from deeper ply
-				for (int j = ply + 1; j < pvLen[ply + 1]; ++j) {
-					pvTable[ply][j] = pvTable[ply + 1][j];
-				}
-				//adjust PVLen
-				pvLen[ply] = pvLen[ply + 1];
-
-				if (score >= beta) {
-					//fail high
-					if (isCapture(currMove) == 0) {
-						killerMoves[1][ply] = killerMoves[0][ply];
-						killerMoves[0][ply] = currMove;
-						//CM history (?)
-						counterMoves[getMoveSource(pos.lastMove)][getMoveTarget(pos.lastMove)] = bestMove;
-					}
-					//delete save;
-					delete moveList;
-					// store hash entry with the score equal to beta
-					writeHashEntry(pos.hashKey, beta, depth, currMove, hashBETA);
-					return beta;
-				}
-				historyMoves[ply][getMovePiece(currMove)][getMoveTarget(currMove)] += depth * depth;
-				bestMove = currMove;
-				hashFlag = hashEXACT;
-				
-				
-
-				//writeHashEntry(pos.hashKey, alpha, depth-1, currMove, hashALPHA);
-			}
-		}
-		else {
-			--ply;
-			--repetitionIndex;
-			//if (stopped == true)return 0;
-			pos = save;
-		}
-	}
-
-	//delete save;
-	delete moveList;
-
-	if (moveSearched == 0) {
-		if (inCheck) {
-			writeHashEntry(pos.hashKey, alpha, depth, bestMove, hashFlag);
-			return -mateValue + ply;
-		}
-		else {
-			return 0;
-		}
-	}
-
-
-	writeHashEntry(pos.hashKey, alpha, depth, bestMove, hashFlag);
-	return alpha; //fails low
-}
-
-*/
-
-
-
-
-inline int Game::negaMax(int alpha, int beta, int depth, bool pv, unsigned char nullMoveCounter) {
+	bool pv = (alpha + 1 != beta);
 	//Communication
 	if ((nodes & 2047) == 0) {
 		communicate();
 		if (stopped)return 0;
 	}
 
+	//half move draw
+	if (ply && isFiftyMoveDraw())return 0;
 	//repetition
 	if (ply && isRepetition()) return 0;
-	int score;
+	int score = -infinity;
 
-	//null move pruning reset
-	if (!pv && nullMoveCounter > 0) --nullMoveCounter;
 
 	//tt probing
-	if (!pv && ply && (score = readHashEntry(pos.hashKey, alpha, beta, depth)) != 100000)
+	if (ply && (score = readHashEntry(pos.hashKey, alpha, beta, depth)) != 100000)
 		return score;
+
+	score = -infinity;
 
 	//avoid ply overflow
 	if (ply > maxPly - 1)
@@ -802,22 +526,43 @@ inline int Game::negaMax(int alpha, int beta, int depth, bool pv, unsigned char 
 
 	//drop into qSearch if depth <= 0
 	if (depth <= 0) return quiescence(alpha, beta);
-
+	else ++nodes;
 	/////////// CHECK FOR CHECK ///////////
-	++nodes;
+	
 	unsigned long kingPos;
 	bitScanForward(&kingPos, pos.bitboards[K + pos.side*6]);
 	bool inCheck = pos.isSquareAttacked(kingPos, pos.side ^ 1);
-	if (inCheck) {
-		++depth;
+
+	unsigned long enemyKing;
+	bitScanForward(&enemyKing, pos.bitboards[k - pos.side * 6]);
+	assert(pos.isSquareAttacked(enemyKing, pos.side) == false);
+
+	if (ply && inCheck) {
+		depth = max(depth + 1, 1);
 		// uncomment for some questionable recapture extension
 		// if(getCaptureFlag(pos.lastMove)) ++ depth; 
 	}
 	else {
 
 		if (!pv) {
+
 			// let the pruning galore commence ;)
 			// evaluation pruning and razoring on depth < 3
+			/*
+			if (!inCheck && depth <= 4 && ply && beta > -1000 && alpha < 1000) {
+				if (score == -infinity)
+					score = quiescence(alpha, beta);
+				if (okToReduce(pos.lastMove) && score < alpha - depth * 200) { // fail-low
+					return score;
+				}
+				if (score > beta + depth * 200) { //fail-high
+					return score;
+				}
+			}
+			*/
+
+
+
 			if (depth < 3) {
 
 				//EVALUATION PRUNING
@@ -861,76 +606,81 @@ inline int Game::negaMax(int alpha, int beta, int depth, bool pv, unsigned char 
 					}
 				}
 			}
-			else {
+			//Null move pruning
+			if (ply && nullMovePermitted && depth>= 2) {
 
-				//Null move pruning
-				if (ply && nullMoveCounter == 0) {
+				int R = 4 + depth / 4;
+				if (score > beta) R += min(2, (score - beta) / 200);
+				//null move is technically a ply
+				++ply;
 
-					//null move is technically a ply
-					++ply;
+				//so increase the null move counter (???)
+				++repetitionIndex;
+				repetitionTable[repetitionIndex] = pos.hashKey;
 
-					//so increase the null move counter (???)
-					++repetitionIndex;
-					repetitionTable[repetitionIndex] = pos.hashKey;
+				//do the null move
+				int lastMove = pos.lastMove; //last move gets saved
+				pos.side ^= 1; //switch side
+				int exPassant = pos.enPassant; // save last enPassant
+				pos.enPassant = no_square; // remove enPassant square
+				pos.hashKey ^= sideKeys; // hash the other side
+				pos.hashKey ^= enPassantKeys[exPassant]; // hashOut the en passant square
 
-					//do the null move
-					pos.side ^= 1; //switch side
-					int exPassant = pos.enPassant; // save last enPassant
-					pos.enPassant = no_square; // remove enPassant square
-					pos.hashKey ^= sideKeys; // hash the other side
-					pos.hashKey ^= enPassantKeys[exPassant]; // hashOut the en passant square
+				score = -negaMax(-beta, -beta + 1, -depth - 1 - R, false);
 
-					int R = 2;
-					int nullScore = -negaMax(-beta, -beta + 1, -depth - 1 - R, false, nullMoveCounter + 2*R);
+				--ply;
+				--repetitionIndex;
 
-					--ply;
-					--repetitionIndex;
+				//undo the null move
+				pos.side ^= 1; //switch side
+				pos.enPassant = exPassant; // reload last enPassant
+				pos.hashKey ^= sideKeys; // hash the other side
+				pos.hashKey ^= enPassantKeys[exPassant]; // hashIn the en passant square
+				pos.lastMove = lastMove; //restore last move
 
-					//undo the null move
-					pos.side ^= 1; //switch side
-					pos.enPassant = exPassant; // reload last enPassant
-					pos.hashKey ^= sideKeys; // hash the other side
-					pos.hashKey ^= enPassantKeys[exPassant]; // hashIn the en passant square
-
-					if (nullScore >= beta) {
-						// test 1
-						//historyMoves[ply - 1][getMoveSource(pos.lastMove)][getMoveTarget(pos.lastMove)] -= (historyMoves[ply - 1][getMoveSource(pos.lastMove)][getMoveTarget(pos.lastMove)] > 0);
-						depth -= R;
-					}
+				if (score >= beta && abs(score) < mateScore - 100) {
+					// test 1
+					//historyMoves[ply - 1][getMoveSource(pos.lastMove)][getMoveTarget(pos.lastMove)] -= (historyMoves[ply - 1][getMoveSource(pos.lastMove)][getMoveTarget(pos.lastMove)] > 0);
+					return beta;
 				}
 			}
+			
 		}
 	}
 	// END PRUNING
 
+	killerMoves[0][ply + 1] = 0;
+	killerMoves[1][ply + 1] = 0;
 	int moveSearched = 0;
 
 	moves* moveList = new moves;
 	generateMoves(moveList, inCheck);
 	Position save = pos;
 	
-	tt* entry = getEntry(pos.hashKey);
-	//fetch entry bMove
-	for (int i = 1; i < moveList->count; ++i) {
-		if (onlyMove(moveList->m[i]) == entry->move) {
-			//if there's already a PV move
-			if (moveList->m[1] > 0xFFFFFFFF00000000) {
-				moveList->m[0] = moveList->m[1];
-				moveList->m[1] = moveList->m[i];
+		tt* entry = getEntry(pos.hashKey);
+		//fetch entry bMove
+		for (int i = 1; i < moveList->count; ++i) {
+			if (onlyMove(moveList->m[i]) == entry->move) {
+				//if there's already a PV move
+
+				if (moveList->m[1] < 0xFFFFFFFF00000000) {
+					moveList->m[0] = moveList->m[i];
+					moveList->m[i] = 0;
+				}
+				else {
+					moveList->m[0] = moveList->m[1];
+					moveList->m[1] = moveList->m[i];
+					moveList->m[i] = 0;
+				}
+
+				break;
 			}
-			//else
-			else {
-				moveList->m[0] = moveList->m[i];
-			}
-			//in any case, the fetched move double must be removed
-			moveList->m[i] = 0;
-			break;
 		}
-	}
+	
 
 #define useIID true
 #if useIID
-	if (abs(beta - alpha) > 1 && depth > 5) {
+	if (!pv && depth > 5) {
 		//if not fetched move from tt & no pv move
 		if (moveList->m[0] == 0 && moveList->m[1] < 0xFFFFFFFF00000000) {
 			moveList->m[0] = IID(moveList, depth / 4 + 2);
@@ -962,24 +712,27 @@ inline int Game::negaMax(int alpha, int beta, int depth, bool pv, unsigned char 
 		//TODO: DO A LEGAL MOVE GENERATOR, NOT A PSEUDO LEGAL + MOVE VERIFICATION
 		if (makeMove(currMove)) {
 			//if legal
+
 			int score = alpha + 1; //so that at the end of search(es), we can perform a little trick ;)
-			if (!moveSearched) score = -negaMax(-beta, -alpha, depth - 1, pv, nullMoveCounter); //firstMove MUST be searched on full alpha-beta
+
+
+			if (!moveSearched) score = -negaMax(-beta, -alpha, depth - 1, nullMovePermitted); //firstMove MUST be searched on full alpha-beta
 			else {
 				// another recapture stuff ?
 				// bool recapture = getCaptureFlag(pos.lastMove) > 0 && getCaptureFlag(currMove) > 0;
 				// score = -negaMax(-alpha-1, -alpha, depth-1,false,nullMoveCounter);
-				if (okToReduce(currMove) && !inCheck) {
-					score = -negaMax(-alpha - 1, -alpha, depth - 1 - sqrt(log(2 * ply * moveSearched * moveList->count)), false, nullMoveCounter);
+				if (okToReduce(currMove) && !inCheck && (manhattanDistance[kingPos][getMoveTarget(pos.lastMove)] != 1) && (manhattanDistance[enemyKing][getMoveTarget(currMove)] != 1)) {
+					score = -negaMax(-alpha - 1, -alpha, depth - sqrt(log(2 * ply * moveSearched * moveList->count)), nullMovePermitted);
 				}
 				else score = alpha + 1;
 
 				//now we check if score has never been touched with our magic trick from before
 				if (score > alpha) {
-					score = -negaMax(-alpha - 1, -alpha, depth - 1, false, nullMoveCounter);
-					if ((score > alpha) && (score < beta)) score = -negaMax(-beta, -alpha, depth - 1, pv, nullMoveCounter);
+					score = -negaMax(-alpha - 1, -alpha, depth - 1, nullMovePermitted);
+					if ((score > alpha) && (score < beta)) score = -negaMax(-beta, -alpha, depth - 1, nullMovePermitted);
 				}
 			}
-			
+					
 
 			//restore position for next iteration
 			++moveSearched;
@@ -993,7 +746,7 @@ inline int Game::negaMax(int alpha, int beta, int depth, bool pv, unsigned char 
 				//new candidate node
 				alpha = score;
 
-				if (pv) {				
+				if (true) {				
 					//write pvMove
 					pvTable[ply][ply] = currMove;
 					//copy variation
@@ -1012,7 +765,7 @@ inline int Game::negaMax(int alpha, int beta, int depth, bool pv, unsigned char 
 						killerMoves[1][ply] = killerMoves[0][ply];
 						killerMoves[0][ply] = currMove;
 						//update counter move history
-						counterMoves[getMoveSource(pos.lastMove)][getMoveTarget(pos.lastMove)] = bestMove;
+						counterMoves[pos.side][getMoveSource(pos.lastMove)][getMoveTarget(pos.lastMove)] = bestMove;
 					}
 					//we can finish the search here
 					delete moveList;
@@ -1023,7 +776,7 @@ inline int Game::negaMax(int alpha, int beta, int depth, bool pv, unsigned char 
 				}
 
 				//put history move [[ MAYBE do it after score >= beta check]]
-				historyMoves[ply][getMovePiece(currMove)][getMoveTarget(currMove)] += depth * depth;
+				historyMoves[pos.side][getMovePiece(currMove)][getMoveTarget(currMove)] += depth * depth;
 				bestMove = currMove;
 				hashFlag = hashEXACT; //at least one move has been found
 			}
@@ -1042,6 +795,7 @@ inline int Game::negaMax(int alpha, int beta, int depth, bool pv, unsigned char 
 	if (!moveSearched) {
 		if (inCheck) {
 			//checkmate
+			//historyMoves[pos.side ^ 1][getMovePiece(pos.lastMove)][getMoveTarget(pos.lastMove)] += depth * depth * depth;
 			writeHashEntry(pos.hashKey, alpha, depth, bestMove, hashFlag);
 			return -mateValue + ply;
 		}
@@ -1522,7 +1276,6 @@ inline int Position::blackCaptureValueAt(int square) {
 
 #define checkBonus 0xffff
 #define pawnPushBonus 0xbfff
-
 inline void Position::generateMoves(moves* moveList, bool isCheck) {
 
 	U64 occupancies[3];
@@ -1972,7 +1725,7 @@ moveInt Game::IID(moves* moveList, int depth) {
 		++repetitionIndex;
 		repetitionTable[repetitionIndex] = pos.hashKey;
 		if (makeMove(moveList->m[i])) {
-			int currScore = -negaMax(-infinity, +infinity, depth, true, 0);
+			int currScore = -negaMax(-infinity, +infinity, depth, false);
 			--ply;
 			--repetitionIndex;
 			if (currScore > score) {
@@ -2307,6 +2060,10 @@ inline void Position::generateCaptures(moves* moveList) {
 	std::sort(std::begin(moveList->m),std::begin(moveList->m) + moveList->count, std::greater<U64>());
 }
 
+inline bool Game::isFiftyMoveDraw() {
+	return pos.halfMoves >= 100;
+}
+
 inline void Position::newKey() {
 	hashKey = 0;
 	for (int i = 0; i < 12; i++) {
@@ -2340,11 +2097,13 @@ inline int Game::makeMove(moveInt move, int flags) {
 	if (!move) return 0;
 	if (flags == allMoves) {
 
-	
+		++pos.halfMoves;
 		
 		int source = getMoveSource(move);
 		int target = getMoveTarget(move);
 		int piece = getMovePiece(move);
+
+		pos.halfMoves *= 1 - ((piece % 6) == 0);
 		
 
 		//move the piece
@@ -2361,6 +2120,7 @@ inline int Game::makeMove(moveInt move, int flags) {
 #define clearMode 0
 #if clearMode == 0
 		if (getCaptureFlag(move)) {
+			pos.halfMoves = 0;
 			if (pos.side == white) {	
 				if (testBit(pos.bitboards[6], target)) {
 					//if piece, remove
@@ -2626,40 +2386,23 @@ inline void Position::addMove(moves* moveList, moveInt move, int bonus) {
 		move |= (0xffffff000000);
 	}
 	else if (killerMoves[1][ply] == move) {
-		move |= (0xefffff000000);
+		move |= (0xeffff000000);
 	}
-	else if (ply < 62 && killerMoves[0][ply+2] == move) {
-		move |= (0xcfffff000000);
-	}
-	else if (ply < 62 && killerMoves[1][ply+2] == move) {
-		move |= (0xbfffff000000);
-	}
+	
 	else if (ply > 2 && killerMoves[0][ply - 2] == move) {
-		move |= (0xcfffff000000);
+		move |= (0xcffff000000);
 	}
 	else if (ply > 2 && killerMoves[1][ply - 2] == move) {
-		move |= (0xbfffff000000);
+		move |= (0xbffff000000);
 	}
-	else if (killerMoves[0][ply] == move) {
-		move |= (0xffffff000000);
-	}
-	else if (killerMoves[1][ply] == move) {
-		move |= (0xefffff000000);
-	}
-	else if (move == counterMoves[getMoveSource(lastMove)][getMoveTarget(lastMove)]) {
-		move |= (0xdfffff000000);
+	else if (lastMove != 0 && move == counterMoves[side][getMoveSource(lastMove)][getMoveTarget(lastMove)]) {
+		move |= (0xdffff000000);
 	}
 	else {
 #define centerBonus 10 //10 > 7 > 2 > 16
-		if (ply >= 2) {
-			bonus += historyMoves[ply - 2][getMovePiece(move)][getMoveTarget(move)] >> 2;
-			if (ply >= 4) bonus += historyMoves[ply - 4][getMovePiece(move)][getMoveTarget(move)] >> 4;
-		}
-		bonus += historyMoves[ply][getMovePiece(move)][getMoveTarget(move)];
-		if (ply <= 61) {
-			bonus += historyMoves[ply + 2][getMovePiece(move)][getMoveTarget(move)] >> 2;
-			if (ply <= 59) bonus += historyMoves[ply + 4][getMovePiece(move)][getMoveTarget(move)] >> 4;
-		}
+		
+		bonus += historyMoves[side][getMovePiece(move)][getMoveTarget(move)];
+		
 		bonus += centerBonusTable10[getMoveTarget(move)];
 		
 		move |= ((U64)bonus << 24);
