@@ -23,7 +23,7 @@ typedef unsigned long long moveInt;
     (castling << 23)    \
 
 
-#define okToReduce(move) (getCaptureFlag(move)==0 || getPromotion(move)==0 || getMovePiece(move)%6!=0)
+#define okToReduce(move) (getCaptureFlag(move)==0 || getPromotion(move)==0 || (getMovePiece(move) % 6 == 0))
 #define getMoveSource(move)		( move & 0x3f    )
 #define getMoveTarget(move)		((move & 0xfc0   ) >>  6 )
 #define getMovePiece(move)		((move & 0xf000  ) >> 12 )

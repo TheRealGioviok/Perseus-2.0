@@ -7,7 +7,7 @@
 #include <cassert>
 
 moveInt killerMoves[2][maxPly] = { {0} };
-int historyMoves[2][12][64] = { {0	} };
+int historyMoves[64][12][64] = { {0	} };
 moveInt counterMoves[2][64][64] = { {0} };
 U64 repetitionTable[128] = { 0 };
 int repetitionIndex = 0;
@@ -58,7 +58,7 @@ inline int Game::eval() {
 	return evaluate(&pos);
 #endif
 }
-#define VALWINDOW 25
+#define VALWINDOW 30
 void Game::searchPosition(int depth) {
 
 	
@@ -72,14 +72,15 @@ void Game::searchPosition(int depth) {
 	memset(pvLen, 0, sizeof(pvLen));
 	memset(historyMoves, 0, sizeof(historyMoves));
 	memset(counterMoves, 0, sizeof(counterMoves));
+	wipeTT();
 	std::string bestMove = "";
 	U64 totnodes = 0;
 	startTime = getTimeMs();
 	std::cout << "startTime is " << startTime << "\n";
 	moveTime = startTime + calcMoveTime();
 	std::cout << "End time is" << moveTime << "\n";
-	for (int c = 1; c <= depth; ++c) {
-		if (stopped == true) {
+	for (int c = 1; c <= depth; c++) {
+		if (stopped == true || c >= maxPly) {
 			stopped = false;
 			break;
 		}
@@ -393,11 +394,15 @@ inline int Game::negaMax2(int alpha, int beta, int depth, bool cutNode) {
 
 			if (moveSearched == 0) score = -negaMax(-beta, -alpha, depth - 1, cutNode); //PV node - cutNode instead of true?
 			else { //cut node: all heuristic allowed
-				int r = 0; //late move reduction factor
-				r += (moveSearched > 1 + 2 * (!cutNode));
-				if (okToReduce(currMove) && !inCheck) r += min(5, (((int)(21.9 * log(ply))) * (15 + 7 * moveSearched) + 534) / 1024);
-				r += (historyMoves[ply][getMovePiece(currMove)][getMoveTarget(currMove)]) <= depth;
-				score = -negaMax(-alpha - 1, -alpha, depth - r - 1, true);
+				if (false && okToReduce(currMove) && !inCheck) {
+					int r = 0; //late move reduction factor
+					r += (moveSearched > 1 + 2 * (!cutNode));
+					r += min(5, (((int)(21.9 * log(ply))) * (15 + 7 * moveSearched) + 534) / 1024);
+					r += (historyMoves[ply][getMovePiece(currMove)][getMoveTarget(currMove)]) < depth * depth;
+					score = -negaMax(-alpha - 1, -alpha, depth - r, true);
+				}
+
+				
 
 				if (score > alpha) {
 
@@ -563,7 +568,7 @@ inline int Game::negaMax(int alpha, int beta, int depth, bool nullMovePermitted)
 
 
 
-			if (depth < 3) {
+			if (ply && depth < 3) {
 
 				//EVALUATION PRUNING
 				int staticEval = 0;
@@ -607,7 +612,7 @@ inline int Game::negaMax(int alpha, int beta, int depth, bool nullMovePermitted)
 				}
 			}
 			//Null move pruning
-			if (ply && nullMovePermitted && depth>= 2) {
+			if (ply > 1 && nullMovePermitted && depth >= 2) {
 
 				int R = 4 + depth / 4;
 				if (score > beta) R += min(2, (score - beta) / 200);
@@ -620,6 +625,7 @@ inline int Game::negaMax(int alpha, int beta, int depth, bool nullMovePermitted)
 
 				//do the null move
 				int lastMove = pos.lastMove; //last move gets saved
+				U64 hashKey = pos.hashKey;
 				pos.side ^= 1; //switch side
 				int exPassant = pos.enPassant; // save last enPassant
 				pos.enPassant = no_square; // remove enPassant square
@@ -634,8 +640,7 @@ inline int Game::negaMax(int alpha, int beta, int depth, bool nullMovePermitted)
 				//undo the null move
 				pos.side ^= 1; //switch side
 				pos.enPassant = exPassant; // reload last enPassant
-				pos.hashKey ^= sideKeys; // hash the other side
-				pos.hashKey ^= enPassantKeys[exPassant]; // hashIn the en passant square
+				pos.hashKey = hashKey;
 				pos.lastMove = lastMove; //restore last move
 
 				if (score >= beta && abs(score) < mateScore - 100) {
@@ -657,42 +662,46 @@ inline int Game::negaMax(int alpha, int beta, int depth, bool nullMovePermitted)
 	generateMoves(moveList, inCheck);
 	Position save = pos;
 	
+	if (!pv) {
 		tt* entry = getEntry(pos.hashKey);
-		//fetch entry bMove
-		for (int i = 1; i < moveList->count; ++i) {
-			if (onlyMove(moveList->m[i]) == entry->move) {
-				//if there's already a PV move
+		if (entry->key == pos.hashKey) {
+			//fetch entry bMove
+			for (int i = 1; i < moveList->count; ++i) {
+				if (onlyMove(moveList->m[i]) == entry->move) {
+					//if there's already a PV move
 
-				if (moveList->m[1] < 0xFFFFFFFF00000000) {
-					moveList->m[0] = moveList->m[i];
-					moveList->m[i] = 0;
+					if (moveList->m[1] < 0xFFFFFFFF00000000) {
+						moveList->m[0] = moveList->m[i];
+						moveList->m[i] = 0;
+					}
+					else {
+						moveList->m[0] = moveList->m[1];
+						moveList->m[1] = moveList->m[i];
+						moveList->m[i] = 0;
+					}
+
+					break;
 				}
-				else {
-					moveList->m[0] = moveList->m[1];
-					moveList->m[1] = moveList->m[i];
-					moveList->m[i] = 0;
-				}
-
-				break;
-			}
-		}
-	
-
-#define useIID true
-#if useIID
-	if (!pv && depth > 5) {
-		//if not fetched move from tt & no pv move
-		if (moveList->m[0] == 0 && moveList->m[1] < 0xFFFFFFFF00000000) {
-			moveList->m[0] = IID(moveList, depth / 4 + 2);
-			// moveList->m[0] = IID(moveList, depth / 4 + 2); //replace the if ...?
-			// remove doubled IID move
-			for (int i = 0; i < moveList->count; ++i) if (onlyMove(moveList->m[i]) == moveList->m[0]) {
-				moveList->m[i] = 0;
-				break;
 			}
 		}
 	}
+	else {
+#define useIID false
+#if useIID
+		if (depth > 5) {
+			if (moveList->m[1] < 0xFFFFFFFF00000000) {
+				moveList->m[0] = IID(moveList, (depth / 4 + 1));
+				// moveList->m[0] = IID(moveList, depth / 4 + 2); //replace the if ...?
+				// remove doubled IID move
+				for (int i = 0; i < moveList->count; ++i) if (onlyMove(moveList->m[i]) == moveList->m[0]) {
+					moveList->m[i] = 0;
+					break;
+				}
+			}
+		}
 #endif
+	}
+	
 
 
 
@@ -722,7 +731,8 @@ inline int Game::negaMax(int alpha, int beta, int depth, bool nullMovePermitted)
 				// bool recapture = getCaptureFlag(pos.lastMove) > 0 && getCaptureFlag(currMove) > 0;
 				// score = -negaMax(-alpha-1, -alpha, depth-1,false,nullMoveCounter);
 				if (okToReduce(currMove) && !inCheck && (manhattanDistance[kingPos][getMoveTarget(pos.lastMove)] != 1) && (manhattanDistance[enemyKing][getMoveTarget(currMove)] != 1)) {
-					score = -negaMax(-alpha - 1, -alpha, depth - sqrt(log(2 * ply * moveSearched * moveList->count)), nullMovePermitted);
+					bool goodStory = historyMoves[ply][getMovePiece(currMove)][getMoveTarget(currMove)] >= depth * depth;
+					score = -negaMax(-alpha - 1, -alpha, depth - sqrt(log(ply * moveSearched * moveList->count)) - 1 + goodStory, nullMovePermitted);
 				}
 				else score = alpha + 1;
 
@@ -746,7 +756,7 @@ inline int Game::negaMax(int alpha, int beta, int depth, bool nullMovePermitted)
 				//new candidate node
 				alpha = score;
 
-				if (true) {				
+				if (nullMovePermitted) {				
 					//write pvMove
 					pvTable[ply][ply] = currMove;
 					//copy variation
@@ -756,7 +766,9 @@ inline int Game::negaMax(int alpha, int beta, int depth, bool nullMovePermitted)
 					// adjust pvLen
 					pvLen[ply] = pvLen[ply + 1];
 				}
-					
+				
+				//put history move [[ MAYBE do it after score >= beta check]]
+				historyMoves[ply][getMovePiece(currMove)][getMoveTarget(currMove)] += depth * depth;
 
 				if (score >= beta) {
 					//on fail high
@@ -775,8 +787,7 @@ inline int Game::negaMax(int alpha, int beta, int depth, bool nullMovePermitted)
 					return beta;
 				}
 
-				//put history move [[ MAYBE do it after score >= beta check]]
-				historyMoves[pos.side][getMovePiece(currMove)][getMoveTarget(currMove)] += depth * depth;
+				
 				bestMove = currMove;
 				hashFlag = hashEXACT; //at least one move has been found
 			}
@@ -2379,10 +2390,10 @@ moveInt Game::getLegal(const char* moveString) {
 
 inline void Position::addMove(moves* moveList, moveInt move, int bonus) {
 
-	if (pvTable[0][ply] == move) {
-		move |= (0xffffffffff000000);
-	}
-	else if (killerMoves[0][ply] == move) {
+	/*if (pvTable[0][ply] == move) {
+		move |= ( 0xffffffffff000000 );
+	}*/
+	if (killerMoves[0][ply] == move) {
 		move |= (0xffffff000000);
 	}
 	else if (killerMoves[1][ply] == move) {
@@ -2390,18 +2401,22 @@ inline void Position::addMove(moves* moveList, moveInt move, int bonus) {
 	}
 	
 	else if (ply > 2 && killerMoves[0][ply - 2] == move) {
-		move |= (0xcffff000000);
+		move |= (0xfffff000000);
 	}
 	else if (ply > 2 && killerMoves[1][ply - 2] == move) {
-		move |= (0xbffff000000);
+		move |= (0xeffff000000);
 	}
 	else if (lastMove != 0 && move == counterMoves[side][getMoveSource(lastMove)][getMoveTarget(lastMove)]) {
 		move |= (0xdffff000000);
 	}
 	else {
 #define centerBonus 10 //10 > 7 > 2 > 16
+
+		if(ply>=2) bonus += historyMoves[ply-2][getMovePiece(move)][getMoveTarget(move)];
 		
-		bonus += historyMoves[side][getMovePiece(move)][getMoveTarget(move)];
+		bonus += historyMoves[ply][getMovePiece(move)][getMoveTarget(move)];
+
+		if(ply<62)bonus += historyMoves[ply+2][getMovePiece(move)][getMoveTarget(move)];
 		
 		bonus += centerBonusTable10[getMoveTarget(move)];
 		

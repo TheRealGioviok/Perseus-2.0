@@ -20,7 +20,7 @@ int charPieces(char piece);
 U64 getTimeMs();
 
 extern moveInt killerMoves[2][maxPly];
-extern int historyMoves[2][12][64];
+extern int historyMoves[64][12][64];
 extern moveInt counterMoves[2][64][64];
 extern U64 repetitionTable[128];
 extern int repetitionIndex;

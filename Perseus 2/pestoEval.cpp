@@ -201,11 +201,16 @@ void init_tables() {
 #define mobilityEval true
 
 #define knightMobilityNormal 4
-#define knightMobilityAttacked 2
+#define knightMobilityAttacked 3
 #define sliderMobilityNormal 4
-#define sliderMobilityAttacked 2
+#define sliderMobilityAttacked 3
 #define queenMobilityNormal 4
-#define queenMobilityAttacked 2
+#define queenMobilityAttacked 3
+
+// 434343 => 60,5 / 108
+// 532121 => 58,5 / 108
+// 202020 => 58,5 / 108
+// 422121 => 58,0 / 108
 
 //const int mg_value[6] = { 82, 337, 365, 477, 1025,  0 };
 int pestoEval(Position* pos) {
@@ -514,8 +519,8 @@ int pestoEval(Position* pos) {
     int whiteKingShield = ((wk>>3) >0? popcount(bitboards[0] & kingAttacks[wk] & ranks[(wk>>3) - 1]) - 3 : -3);
     int blackKingShield = ((wk >> 3) <7? popcount(bitboards[6] & kingAttacks[bk] & ranks[(bk >> 3) + 1]) - 3: -3);
 #define INITIAL_PIECE_MATERIAL 4039
-    int whiteKingSafety = 2 * ((whiteKingShield - tropismToWhiteKing) * whiteMat) / INITIAL_PIECE_MATERIAL;
-    int blackKingSafety = 2 * ((blackKingShield - tropismToBlackKing) * blackMat) / INITIAL_PIECE_MATERIAL;
+    int whiteKingSafety = 3 * ((whiteKingShield - tropismToWhiteKing) * whiteMat) / INITIAL_PIECE_MATERIAL;
+    int blackKingSafety = 3 * ((blackKingShield - tropismToBlackKing) * blackMat) / INITIAL_PIECE_MATERIAL;
 
     int side2move = pos->side;
     int mgScore = mg[side2move] - mg[OTHER(side2move)];
@@ -571,7 +576,7 @@ int pestoEval(Position* pos) {
 
 
     
-
-    score += 28 * (1 - 2 * pos->side);
+#define TEMPOBONUS 28 //stockfish uses 28
+    score += (1 - 2 * pos->side) * TEMPOBONUS;
     return ((100-pos->halfMoves) * ((mgScore * mgPhase + egScore * egPhase) / 24 + score)/100);
 }
