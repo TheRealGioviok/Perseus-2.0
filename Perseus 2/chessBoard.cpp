@@ -79,7 +79,7 @@ void Game::searchPosition(int depth) {
 	std::cout << "startTime is " << startTime << "\n";
 	moveTime = startTime + calcMoveTime();
 	std::cout << "End time is" << moveTime << "\n";
-	for (int c = 1; c <= depth; c++) {
+	for (int c = 2; c <= depth; c++) {
 		if (stopped == true || c >= maxPly) {
 			stopped = false;
 			break;
